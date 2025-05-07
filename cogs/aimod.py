@@ -111,7 +111,6 @@ SERVER_RULES = """
 - No discrimination. This includes gender identity, sexual orientation, race, etc.
 - No AI-generated porn.
 - No pedophilia. This includes lolicon/shotacon.
-- Use the right channels. Bot commands go in <#1360717341775630637>, unless it's part of a bot game or event.
 - Suggestions are welcome! Drop them in <#1361752490210492489> if you've got any ideas.
 
 If someone breaks the rules, ping <@&1361031007536549979>.
@@ -162,7 +161,6 @@ class ModerationCog(commands.Cog):
         "MOD_LOG_CHANNEL_ID",
         "MODERATOR_ROLE_ID",
         "SUICIDAL_PING_ROLE_ID",
-        "BOT_COMMANDS_CHANNEL_ID",
         "SUGGESTIONS_CHANNEL_ID",
         "NSFW_CHANNEL_IDS",
         "AI_MODEL",
@@ -381,7 +379,7 @@ Instructions:
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
     - "violation": boolean (true if any rule is violated, false otherwise)
-    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1 > 6).
+    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
     - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
     - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
        Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
@@ -819,39 +817,6 @@ Now, analyze the provided message content based on the rules and instructions gi
         # --- Suicidal Content Check ---
         # Suicidal keyword check removed; handled by OpenRouter AI moderation.
 
-                # --- Rule 6 Check (Channel Usage - Basic) ---
-        # This rule is handled before AI analysis for efficiency if it's a simple command prefix check.
-        # If Rule 6 violations should also go through AI and progressive discipline, this logic would need to move.
-        common_prefixes = ('!', '?', '.', '$', '%', '/', '-')
-        is_likely_bot_command = message.content.startswith(common_prefixes)
-        bot_commands_channel_ids = get_guild_config(message.guild.id, "BOT_COMMANDS_CHANNEL_ID", [])
-        if isinstance(bot_commands_channel_ids, int): # Ensure it's a list
-            bot_commands_channel_ids = [bot_commands_channel_ids]
-
-        # Check if the current channel is NOT a bot command channel
-        # AND the message is likely a bot command
-        # AND the message is not in the suggestions channel (if suggestions can also have commands)
-        suggestions_channel_id = get_guild_config(message.guild.id, "SUGGESTIONS_CHANNEL_ID")
-
-        if is_likely_bot_command and \
-           message.channel.id not in bot_commands_channel_ids and \
-           message.channel.id != suggestions_channel_id:
-            try:
-                # await message.delete()
-                bot_commands_channel_mention = f"<#{bot_commands_channel_ids[0]}>" if bot_commands_channel_ids else "the designated bot commands channel"
-                await message.channel.send(
-                    f"{message.author.mention}, please use bot commands only in {bot_commands_channel_mention} (Rule 6).",
-                    delete_after=20
-                )
-                print(f"Deleted message from {message.author} in #{message.channel.name} for violating Rule 6 (Bot Command in wrong channel).")
-                # Optionally, log this as a minor infraction if desired, though it's usually just a redirect.
-                # add_user_infraction(message.guild.id, message.author.id, "6", "REDIRECTED_RULE6", "Bot command in wrong channel.", datetime.datetime.utcnow().isoformat() + "Z")
-            except discord.Forbidden:
-                print(f"Missing permissions to delete/warn for Rule 6 in #{message.channel.name}.")
-            except discord.NotFound:
-                print("Message already deleted (Rule 6 check).")
-            return # Stop further AI processing for this specific violation type
-
         # --- Prepare for AI Analysis ---
         message_content = message.content
 
@@ -861,7 +826,7 @@ Now, analyze the provided message content based on the rules and instructions gi
 
         # NSFW channel check removed - AI will handle this context
 
-        # --- Call AI for Analysis (Rules 1-5A, 7) ---
+        # --- Call AI for Analysis (All Rules) ---
         if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
              return
 
