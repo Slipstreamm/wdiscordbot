@@ -1,124 +1,85 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timedelta
 
-class ModCog(commands.Cog):
-    def __init__(self, bot):
+class Moderation(commands.Cog):
+    """Moderation commands for server management."""
+
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # This will store the user who receives reports.
-        self.report_recipient = None  
 
-    # --------------------------------------------------------------------------
-    # Kick Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="kick", help="Kick a member from the server.")
-    @commands.has_permissions(kick_members=True)
-    async def kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
-        try:
-            await member.kick(reason=reason)
-            await ctx.send(f"{member.mention} has been kicked.\n**Reason:** {reason}")
-        except Exception as e:
-            await ctx.send(f"Failed to kick {member.mention}: {e}")
-
-    # --------------------------------------------------------------------------
-    # Ban Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="ban", help="Ban a member from the server.")
-    @commands.has_permissions(ban_members=True)
-    async def ban(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
-        try:
-            await member.ban(reason=reason)
-            await ctx.send(f"{member.mention} has been banned.\n**Reason:** {reason}")
-        except Exception as e:
-            await ctx.send(f"Failed to ban {member.mention}: {e}")
-
-    # --------------------------------------------------------------------------
-    # Warn Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="warn", help="Warn a member. (This command just announces the warning.)")
-    @commands.has_permissions(kick_members=True)
-    async def warn(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
-        try:
-            # You might want to log this warning or record it in a database/file.
-            await ctx.send(f"{member.mention} has been warned.\n**Reason:** {reason}")
-        except Exception as e:
-            await ctx.send(f"Failed to warn {member.mention}: {e}")
-
-    # --------------------------------------------------------------------------
-    # Timeout Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="timeout", help="Timeout a member for a specified duration (in seconds).")
-    @commands.has_permissions(moderate_members=True)
-    async def timeout(self, ctx, member: discord.Member, duration: int, *, reason: str = "No reason provided"):
-        try:
-            until = datetime.utcnow() + timedelta(seconds=duration)
-            await member.edit(timeout=until, reason=reason)
-            await ctx.send(f"{member.mention} has been timed out for {duration} seconds.\n**Reason:** {reason}")
-        except Exception as e:
-            await ctx.send(f"Failed to timeout {member.mention}: {e}")
-
-    # --------------------------------------------------------------------------
-    # Server Lockdown Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="serverlockdown", help="Lock down the entire server by disabling send messages for @everyone.")
-    @commands.has_permissions(manage_channels=True)
-    async def serverlockdown(self, ctx):
-        try:
-            locked_count = 0
-            for channel in ctx.guild.text_channels:
-                overwrite = channel.overwrites_for(ctx.guild.default_role)
-                overwrite.send_messages = False
-                await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
-                locked_count += 1
-            await ctx.send(f"Server lockdown activated. Locked {locked_count} text channels.")
-        except Exception as e:
-            await ctx.send(f"Failed to lockdown the server: {e}")
-
-    # --------------------------------------------------------------------------
-    # Channel Lockdown Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="chanlockdown", help="Lockdown a specific text channel.")
-    @commands.has_permissions(manage_channels=True)
-    async def chanlockdown(self, ctx, channel: discord.TextChannel = None):
-        channel = channel or ctx.channel
-        try:
-            overwrite = channel.overwrites_for(ctx.guild.default_role)
-            overwrite.send_messages = False
-            await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
-            await ctx.send(f"{channel.mention} has been locked down.")
-        except Exception as e:
-            await ctx.send(f"Failed to lockdown {channel.mention}: {e}")
-
-    # --------------------------------------------------------------------------
-    # Set Report Recipient Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="setreport", help="Set the user that will receive reports (usage: /setreport @User).")
-    @commands.has_permissions(administrator=True)
-    async def setreport(self, ctx, user: discord.User):
-        self.report_recipient = user
-        await ctx.send(f"Report recipient has been set to {user.mention}")
-
-    # --------------------------------------------------------------------------
-    # Report Command
-    # --------------------------------------------------------------------------
-    @commands.hybrid_command(name="report", help="Report a user. This command sends a DM to the designated report recipient.")
-    async def report(self, ctx, user: discord.User, *, reason: str = "No reason provided"):
-        if self.report_recipient is None:
-            await ctx.send("No report recipient has been set yet. Please ask an administrator to set one using /setreport.")
-            return
-        try:
-            report_message = (
-                f"**Report Received**\n"
-                f"**Reported by:** {ctx.author.mention}\n"
-                f"**User Reported:** {user.mention}\n"
-                f"**Reason:** {reason}\n"
-                f"**Server:** {ctx.guild.name}\n"
-                f"**Channel:** {ctx.channel.name}"
+    async def send_log(self, interaction: discord.Interaction, action: str, target: discord.Member, reason: str = None):
+        """Send moderation actions to a logging channel."""
+        log_channel = discord.utils.get(interaction.guild.channels, name="mod-logs")  # Change channel name as needed
+        if log_channel:
+            embed = discord.Embed(
+                title=f"Moderation Action: {action}",
+                description=f"**User:** {target.mention}\n**Moderator:** {interaction.user.mention}\n**Reason:** {reason or 'No reason provided'}",
+                color=discord.Color.red(),
             )
-            await self.report_recipient.send(report_message)
-            await ctx.send("Your report has been submitted successfully.")
-        except Exception as e:
-            await ctx.send(f"Failed to submit your report: {e}")
+            await log_channel.send(embed=embed)
 
-async def setup(bot):
-    await bot.add_cog(ModCog(bot))
+    @app_commands.command(name="kick", description="Kick a user from the server.")
+    @app_commands.describe(member="The user to kick", reason="Reason for kicking the user")
+    async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
+        if interaction.user.guild_permissions.kick_members:
+            await member.kick(reason=reason)
+            await interaction.response.send_message(f"🚨 **{member}** has been kicked.\nReason: {reason or 'No reason provided'}")
+            await self.send_log(interaction, "Kick", member, reason)
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+    @app_commands.command(name="ban", description="Ban a user from the server.")
+    @app_commands.describe(member="The user to ban", reason="Reason for banning the user")
+    async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
+        if interaction.user.guild_permissions.ban_members:
+            await member.ban(reason=reason)
+            await interaction.response.send_message(f"🚨 **{member}** has been banned.\nReason: {reason or 'No reason provided'}")
+            await self.send_log(interaction, "Ban", member, reason)
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+    @app_commands.command(name="timeout", description="Timeout (mute) a user for a specified duration.")
+    @app_commands.describe(member="The user to mute", duration="Mute duration in seconds", reason="Reason for muting")
+    async def timeout(self, interaction: discord.Interaction, member: discord.Member, duration: int, reason: str = None):
+        if interaction.user.guild_permissions.moderate_members:
+            await member.timeout_for(duration=discord.utils.utcnow() + discord.utils.timedelta(seconds=duration), reason=reason)
+            await interaction.response.send_message(f"⏳ **{member}** has been muted for **{duration} seconds**.\nReason: {reason or 'No reason provided'}")
+            await self.send_log(interaction, "Timeout", member, reason)
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+    @app_commands.command(name="purge", description="Delete a number of messages in a channel.")
+    @app_commands.describe(amount="Number of messages to delete (max 100)")
+    async def purge(self, interaction: discord.Interaction, amount: int):
+        if interaction.user.guild_permissions.manage_messages:
+            if amount <= 100:
+                await interaction.channel.purge(limit=amount)
+                await interaction.response.send_message(f"🗑 **{amount} messages** have been deleted!", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ You can only delete up to **100** messages at a time.", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+    @app_commands.command(name="warn", description="Warn a user (no actual punishment).")
+    @app_commands.describe(member="The user to warn", reason="Reason for warning")
+    async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
+        if interaction.user.guild_permissions.kick_members:
+            await interaction.response.send_message(f"⚠️ **{member}** has been warned.\nReason: {reason}")
+            await self.send_log(interaction, "Warning", member, reason)
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+    @app_commands.command(name="unban", description="Unban a user by their ID.")
+    @app_commands.describe(user_id="The ID of the user to unban")
+    async def unban(self, interaction: discord.Interaction, user_id: int):
+        if interaction.user.guild_permissions.ban_members:
+            user = discord.Object(id=user_id)
+            await interaction.guild.unban(user)
+            await interaction.response.send_message(f"🔓 **User with ID `{user_id}` has been unbanned.**")
+        else:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+# Cog Setup
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Moderation(bot))
