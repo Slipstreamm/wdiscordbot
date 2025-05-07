@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands, tasks
 import aiohttp
+from discord import app_commands
+import asyncio
 
 class APICheck(commands.Cog):
     def __init__(self, bot):
@@ -18,8 +20,8 @@ class APICheck(commands.Cog):
         except Exception:
             return url, False
 
-    @commands.command(name="apicheck")
-    async def apicheck(self, ctx):
+    @app_commands.command(name="apicheck", description="Check the status of APIs.")
+    async def apicheck(self, interaction: discord.Interaction):
         async with aiohttp.ClientSession() as session:
             results = await asyncio.gather(
                 *(self.check_url(session, url) for url in self.urls)
@@ -29,7 +31,7 @@ class APICheck(commands.Cog):
         for url, status in results:
             status_str = "🟢 Online" if status else "🔴 Offline"
             embed.add_field(name=url, value=status_str, inline=False)
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(APICheck(bot))
