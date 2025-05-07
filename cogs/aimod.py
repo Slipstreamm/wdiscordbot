@@ -111,7 +111,6 @@ SERVER_RULES = """
 - No discrimination. This includes gender identity, sexual orientation, race, etc.
 - No AI-generated porn.
 - No pedophilia. This includes lolicon/shotacon.
-- Use the right channels. Bot commands go in <#1360717341775630637>, unless it's part of a bot game or event.
 - Suggestions are welcome! Drop them in <#1361752490210492489> if you've got any ideas.
 
 If someone breaks the rules, ping <@&1361031007536549979>.
