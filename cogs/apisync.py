@@ -41,7 +41,7 @@ class ApiPushMetricsCog(commands.Cog):
             return
 
         # The API endpoint URL (adjust if needed).
-        url = "https://api.learnhelp.cc/discord/botmetrics.json/"
+        url = "https://learnhelpapi.onrender.com/discord/botmetrics.json/"
 
         headers = {
             "X-API-Key": lh_api_key
