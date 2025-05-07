@@ -95,7 +95,7 @@ class Core(commands.Cog):
         embed.add_field(name="Contributors", value="Izzy - https://staffteam.learnhelp.cc/izzy.html", inline=False)
         embed.add_field(name="Contributors", value="Milly - https://staffteam.learnhelp.cc/milly.html", inline=False)
         embed.add_field(name="Special Thanks", value="Slipstream", inline=False)
-        embed.add_field(name="Powered By", value="OpenAI, Discord API", inline=False)
+        embed.add_field(name="Powered By", value="Gemini, Discord API, The OpenStudio project, Learnhelp API", inline=False)
         embed.add_field(name="Website", value="https://discordbot.learnhelp.cc", inline=False)
         embed.add_field(name="Discord Server", value="https://discord.gg/9CFwFRPNH4", inline=False)
         embed.add_field(name="GitHub", value="https://github.com/pancakes-proxy/wdiscordbot", inline=False)
@@ -108,9 +108,9 @@ class Core(commands.Cog):
             await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
             return
         await interaction.response.send_message("Initiating update. The bot will restart shortly...")
-        target_dir = "/home/server/wdiscordbot/"
+        target_dir = "/home/server/wdiscordbotserver/"
         repo_url = "https://github.com/pancakes-proxy/wdiscordbot.git"
-        restart_script = "/home/server/wdiscordbot/bot.py"
+        restart_script = "/home/server/wdiscordbotserver/bot.py"
 
         try:
             if os.path.exists(target_dir):
