@@ -99,6 +99,7 @@ class Core(commands.Cog):
         embed.add_field(name="Website", value="https://discordbot.learnhelp.cc", inline=False)
         embed.add_field(name="Discord Server", value="https://discord.gg/9CFwFRPNH4", inline=False)
         embed.add_field(name="GitHub", value="https://github.com/pancakes-proxy/wdiscordbot", inline=False)
+        embed.add_field(name"Version", value="Offical Server Bot Version")
         embed.set_footer(text="Thank you for using the bot!")
         await interaction.response.send_message(embed=embed)
 
@@ -109,7 +110,7 @@ class Core(commands.Cog):
             return
         await interaction.response.send_message("Initiating update. The bot will restart shortly...")
         target_dir = "/home/server/wdiscordbotserver/"
-        repo_url = "https://github.com/pancakes-proxy/wdiscordbot.git"
+        repo_url = "https://gitlab.com/pancakes1234/wdiscordbotserver.git"
         restart_script = "/home/server/wdiscordbotserver/bot.py"
 
         try:
