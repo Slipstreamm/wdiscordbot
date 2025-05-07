@@ -1,19 +1,17 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiohttp
-import os
 from datetime import datetime
 
-class ApiPushMetricsCog(commands.Cog):
+class MetricsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @app_commands.command(
-        name="pushmetrics",
-        description="Push live bot metrics to the API."
+        name="metrics",
+        description="Display live bot metrics."
     )
-    async def pushmetrics(self, interaction: discord.Interaction) -> None:
+    async def metrics(self, interaction: discord.Interaction) -> None:
         # Calculate live metrics.
         now = datetime.utcnow()
         uptime_delta = now - self.bot.launch_time
@@ -34,32 +32,21 @@ class ApiPushMetricsCog(commands.Cog):
             "timestamp": now.isoformat() + "Z"
         }
 
-        # Get the API key from the environment variable LHAPI_KEY.
-        lh_api_key = os.getenv("LHAPI_KEY")
-        if not lh_api_key:
-            await interaction.response.send_message("Environment variable LHAPI_KEY is not set.", ephemeral=True)
-            return
+        # Format the metrics for local display.
+        metrics_output = "Live Bot Metrics:\n"
+        metrics_output += f"Uptime: {metrics_data['uptime']}\n"
+        metrics_output += f"Server Count: {metrics_data['server_count']}\n"
+        metrics_output += f"Latency: {metrics_data['latency']}\n"
+        metrics_output += "Command Usage:\n"
+        if metrics_data['command_usage']:
+            for command, count in metrics_data['command_usage'].items():
+                metrics_output += f"  {command}: {count}\n"
+        else:
+            metrics_output += "  No command usage recorded yet.\n"
+        metrics_output += f"Timestamp: {metrics_data['timestamp']}"
 
-        # The API endpoint URL (adjust if needed).
-        url = "https://learnhelpapi.onrender.com/discord/botmetrics.json/"
-
-        headers = {
-            "X-API-Key": lh_api_key
-        }
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=metrics_data, headers=headers) as resp:
-                    if resp.status == 200:
-                        await interaction.response.send_message("Successfully pushed live metrics to the API.", ephemeral=True)
-                    else:
-                        error_text = await resp.text()
-                        await interaction.response.send_message(
-                            f"Failed to push metrics. Status: {resp.status}. Error: {error_text}",
-                            ephemeral=True
-                        )
-        except Exception as e:
-            await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
+        # Send the metrics locally.
+        await interaction.response.send_message(metrics_output, ephemeral=True)
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(ApiPushMetricsCog(bot))
+    await bot.add_cog(MetricsCog(bot))
