@@ -155,7 +155,7 @@ class ModerationCog(commands.Cog):
 
     def _load_openrouter_models(self):
         """Loads OpenRouter model data from the JSON file."""
-        models_json_path = "/home/server/wdiscordbot/data/openrouter_models.json" # Relative to bot's root
+        models_json_path = "/home/server/wdiscordbotserver/data/openrouter_models.json" # Relative to bot's root
         try:
             if os.path.exists(models_json_path):
                 with open(models_json_path, "r", encoding="utf-8") as f:
