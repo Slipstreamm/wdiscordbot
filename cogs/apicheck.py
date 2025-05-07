@@ -19,21 +19,19 @@ class APICheck(commands.Cog):
                 return url, resp.status == 200
         except Exception:
             return url, False
-            @app_commands.command(name="apicheck", description="Check the status of APIs.")
-            async def apicheck(self, interaction: discord.Interaction):
-                async with aiohttp.ClientSession() as session:
-                    results = await asyncio.gather(
-                        *(self.check_url(session, url) for url in self.urls)
-                    )
 
-                embed = discord.Embed(title="API Status Check", color=discord.Color.blue())
-                for url, status in results:
-                    status_str = "🟢 Online" if status else "🔴 Offline"
-                    embed.add_field(name=url, value=status_str, inline=False)
-                await interaction.response.send_message(embed=embed)
+    @app_commands.command(name="apicheck", description="Check the status of APIs.")
+    async def apicheck(self, interaction: discord.Interaction):
+        async with aiohttp.ClientSession() as session:
+            results = await asyncio.gather(
+                *(self.check_url(session, url) for url in self.urls)
+            )
 
-            async def cog_load(self):
-                self.bot.tree.add_command(self.apicheck)
+        embed = discord.Embed(title="API Status Check", color=discord.Color.blue())
+        for url, status in results:
+            status_str = "🟢 Online" if status else "🔴 Offline"
+            embed.add_field(name=url, value=status_str, inline=False)
+        await interaction.response.send_message(embed=embed)
 
-        async def setup(bot):
-            await bot.add_cog(APICheck(bot))
+async def setup(bot: commands.Bot):
+    await bot.add_cog(APICheck(bot))
