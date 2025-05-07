@@ -163,7 +163,7 @@ async def snack(interaction: discord.Interaction):
 
     class SnackMenuView(discord.ui.View):
         @discord.ui.button(label="Burger", style=discord.ButtonStyle.primary, emoji="🍔")
-        async def burger(interaction: discord.Interaction, _button: discord.ui.Button):
+        async def burger(self, interaction: discord.Interaction, _button: discord.ui.Button):
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="Burger",
@@ -233,15 +233,15 @@ async def snack(interaction: discord.Interaction):
 
 
 @app_commands.command(name="discordsupportinvite", description="Send a link to the Discord support server.")
-async def discordsupportinvite(self, interaction: discord.Interaction):
+async def discordsupportinvite(interaction: discord.Interaction):
         await interaction.response.send_message("https://discord.gg/9CFwFRPNH4")
 
 @app_commands.command(name="developersite", description="Sends a link to the developer's website.")
-async def developersite(self, interaction: discord.Interaction):
+async def developersite(interaction: discord.Interaction):
         await interaction.response.send_message("https://learnhelp.cc/")
 
 @app_commands.command(name="supportserver", description="Sends a link to the support server.")
-async def supportserver(self, interaction: discord.Interaction):
+async def supportserver(interaction: discord.Interaction):
         await interaction.response.send_message("https://discord.gg/9CFwFRPNH4")
         
 
