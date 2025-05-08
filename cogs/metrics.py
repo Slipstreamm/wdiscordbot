@@ -2,16 +2,17 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import aiohttp
+from cogs.apisync import MetricsCog # Import MetricsCog to access its group
 
 class MetricsDisplayCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(
-        name="metrics",
+    @MetricsCog.metrics_group.command( # Use the group from MetricsCog
+        name="api", # Change name to "api"
         description="Displays live bot metrics fetched from the API."
     )
-    async def metrics(self, interaction: discord.Interaction) -> None:
+    async def api_metrics(self, interaction: discord.Interaction) -> None: # Rename method
         # URL of your metrics API endpoint.
         url = "https://api.learnhelp.cc/discord/botmetrics.json/"
 
