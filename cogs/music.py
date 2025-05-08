@@ -112,7 +112,7 @@ class MusicPlayer:
             self.player_task.cancel()
 
 # ==========================
-# Music Cog: Slash Command Integration
+# Music Cog: Slash Command
 # ==========================
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
