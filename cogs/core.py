@@ -25,8 +25,21 @@ class Core(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="sysinfo", description="Shows detailed system and bot information.")
+    @app_commands.command(name="sysinfo", description="Shows the hardware information of the server.")
     async def sysinfo(self, interaction: discord.Interaction):
+        # (The CPU, RAM, and other details are hard-coded here as an example.)
+        embed = discord.Embed(title="Kasanes pc >.<", color=discord.Color.blue())
+        embed.add_field(name="System", value="PowerEdge R7715 ラックサーバー", inline=False)
+        embed.add_field(name="OS", value="ubuntu 24.10", inline=False)
+        embed.add_field(name="Processor", value="AMD EPYC 9175F 4.20GHz", inline=False)
+        embed.add_field(name="RAM", value="768 GB", inline=False)
+        embed.add_field(name="Disk Space", value="480 GB", inline=False)
+        embed.add_field(name="Server Name", value="Freaky teto :3", inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="systemcheck", description="Shows detailed system and bot information.")
+    async def systemcheck(self, interaction: discord.Interaction):
         """Check the bot and system status."""
         # Defer the response to prevent interaction timeout
         await interaction.response.defer(thinking=True)
@@ -34,7 +47,7 @@ class Core(commands.Cog):
             embed = await self._system_check_logic(interaction)
             await interaction.followup.send(embed=embed)
         except Exception as e:
-            print(f"Error in sysinfo command: {e}")
+            print(f"Error in systemcheck command: {e}")
             await interaction.followup.send(f"An error occurred while checking system status: {e}")
 
     async def _system_check_logic(self, context_or_interaction):
@@ -256,7 +269,8 @@ class Core(commands.Cog):
             color=discord.Color.blurple()
         )
         commands_list = [
-            ("/sysinfo", "Shows detailed system and bot information."),
+            ("/sysinfo", "Shows the hardware information of the server."),
+            ("/systemcheck", "Shows detailed system and bot information."),
             ("/status", "Sets the bot's status to the provided text."),
             ("/user", "Changes the bot's nickname."),
             ("/ping", "Pings a server and returns the result."),
