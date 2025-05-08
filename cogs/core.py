@@ -319,8 +319,8 @@ class Core(commands.Cog):
         embed.add_field(name="Powered By", value="Gemini, Discord API, The OpenStudio project, Learnhelp API", inline=False)
         embed.add_field(name="Website", value="https://discordbot.learnhelp.cc", inline=False)
         embed.add_field(name="Discord Server", value="https://discord.gg/9CFwFRPNH4", inline=False)
-        embed.add_field(name="GitHub", value="https://github.com/pancakes-proxy/wdiscordbot", inline=False)
-        embed.add_field(name="Version", value=f"Official Server Bot Version\nCommit: `{commit_hash}`")
+        embed.add_field(name="GitLab", value="https://gitlab.com/pancakes1234/wdiscordbotserver/-/tree/main", inline=False)
+        embed.add_field(name="Version", value=f"Official Server Bot Version\nCommit Hash: [{commit_hash}](https://gitlab.com/pancakes1234/wdiscordbotserver/-/commit/{commit_hash})")
         embed.set_footer(text="Thank you for using the bot!")
         await interaction.response.send_message(embed=embed)
 
