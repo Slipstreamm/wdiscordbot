@@ -20,7 +20,8 @@ if not discord_token:
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="/", intents=intents)
+# Technically no reason to have a prefix set because the bot only uses slash commands.
+bot = commands.Bot(command_prefix=None, intents=intents)
 
 # User ID to send error notifications to
 ERROR_NOTIFICATION_USER_ID = 452666956353503252
