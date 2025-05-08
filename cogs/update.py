@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-class UpdateCog(commands.Cog):
+class GitUpdateCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
@@ -42,4 +42,4 @@ class UpdateCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(UpdateCog(bot))
+    await bot.add_cog(GitUpdateCog(bot))
