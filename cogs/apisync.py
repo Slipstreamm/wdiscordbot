@@ -7,11 +7,13 @@ class MetricsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(
-        name="metrics",
-        description="Display live bot metrics."
+    metrics_group = app_commands.Group(name="metrics", description="Access various bot metrics")
+
+    @metrics_group.command(
+        name="local",
+        description="Display live bot metrics (calculated locally)."
     )
-    async def metrics(self, interaction: discord.Interaction) -> None:
+    async def local_metrics(self, interaction: discord.Interaction) -> None:
         # Calculate live metrics.
         now = datetime.utcnow()
         uptime_delta = now - self.bot.launch_time
