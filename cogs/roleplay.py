@@ -144,7 +144,7 @@ class CustomCommandsCog(commands.Cog):
     @app_commands.command(name="slay", description="Slay a user.")
     async def slay(self, interaction: discord.Interaction, member: discord.Member):
         await interaction.response.send_message(
-            f"{interaction.user.mention} slayed {member.mention} mortal combat style"
+            f"{interaction.user.mention} slayed {member.mention} mortal kombat style"
             )
 
     @app_commands.command(name="backshots", description="Give backshots to a user.")
