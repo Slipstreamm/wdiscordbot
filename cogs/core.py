@@ -94,7 +94,7 @@ class Core(commands.Cog):
         embed.add_field(name="Developer", value="zacarias posey - https://staffteam.learnhelp.cc/zac.html", inline=False)
         embed.add_field(name="Contributors", value="Izzy - https://staffteam.learnhelp.cc/izzy.html", inline=False)
         embed.add_field(name="Contributors", value="Milly - https://staffteam.learnhelp.cc/milly.html", inline=False)
-        embed.add_field(name="Special Thanks", value="Slipstream", inline=False)
+        embed.add_field(name="Contributors", value="Slipstream - https://github.com/Slipstreamm", inline=False)
         embed.add_field(name="Powered By", value="Gemini, Discord API, The OpenStudio project, Learnhelp API", inline=False)
         embed.add_field(name="Website", value="https://discordbot.learnhelp.cc", inline=False)
         embed.add_field(name="Discord Server", value="https://discord.gg/9CFwFRPNH4", inline=False)
