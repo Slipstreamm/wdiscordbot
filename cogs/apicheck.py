@@ -10,7 +10,8 @@ class APICheck(commands.Cog):
         self.urls = [
             "https://learnhelp.cc",
             "https://discordbot.learnhelp.cc",
-            "https://api.learnhelp.cc/"
+            "https://api.learnhelp.cc/",
+            "http://0.0.0.0:5000/"
         ]
 
     async def check_url(self, session, url):
