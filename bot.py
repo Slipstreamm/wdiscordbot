@@ -9,7 +9,7 @@ import functools
 from discord import app_commands
 
 # Load environment variables
-load_dotenv()
+load_dotenv("/home/server/keys.env")
 discord_token = os.getenv("DISCORD_TOKEN")
 
 # Ensure token is set
@@ -75,7 +75,7 @@ def catch_exceptions(func):
 
 # Load cog files dynamically
 async def load_cogs():
-    for filename in os.listdir("cogs/"):
+    for filename in os.listdir("/home/server/wdiscordbotserver/cogs/"):
         if filename.endswith(".py"):
             try:
                 await bot.load_extension(f"cogs.{filename[:-3]}")
