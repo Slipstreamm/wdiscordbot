@@ -9,7 +9,7 @@ import functools
 from discord import app_commands
 
 # Load environment variables
-load_dotenv("/home/server/keys.env")
+load_dotenv()
 discord_token = os.getenv("DISCORD_TOKEN")
 
 # Ensure token is set
@@ -21,7 +21,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 # Technically no reason to have a prefix set because the bot only uses slash commands.
-bot = commands.Bot(command_prefix=None, intents=intents)
+bot = commands.Bot(command_prefix="/", intents=intents)
 
 # User ID to send error notifications to
 ERROR_NOTIFICATION_USER_ID = 452666956353503252
@@ -75,7 +75,7 @@ def catch_exceptions(func):
 
 # Load cog files dynamically
 async def load_cogs():
-    for filename in os.listdir("/home/server/wdiscordbotserver/cogs/"):
+    for filename in os.listdir("cogs/"):
         if filename.endswith(".py"):
             try:
                 await bot.load_extension(f"cogs.{filename[:-3]}")
