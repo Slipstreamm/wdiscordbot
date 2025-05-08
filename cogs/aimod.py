@@ -957,6 +957,6 @@ async def setup(bot: commands.Bot):
         print("*** Moderation Cog will load but WILL NOT function. ***")
         print("*"*60 + "\n")
         # You could choose to raise an error here to prevent the bot from starting
-        # raise ValueError("AI_API_KEY environment variable is not configured. Cannot load ModerationCog.")
+        raise ValueError("AI_API_KEY environment variable is not configured. Cannot load ModerationCog.")
     await bot.add_cog(ModerationCog(bot))
     print("ModerationCog has been loaded.")
