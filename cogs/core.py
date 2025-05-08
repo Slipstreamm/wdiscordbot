@@ -86,6 +86,16 @@ class Core(commands.Cog):
 
     @app_commands.command(name="credits", description="Displays the credits for the bot.")
     async def credits(self, interaction: discord.Interaction):
+        # Try to get the current git commit hash
+        try:
+            commit_hash = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stderr=subprocess.DEVNULL
+            ).decode("utf-8").strip()
+        except Exception:
+            commit_hash = "Unknown"
+
         embed = discord.Embed(
             title="Bot Credits",
             description="This bot was developed with contributions from the following:",
@@ -99,7 +109,7 @@ class Core(commands.Cog):
         embed.add_field(name="Website", value="https://discordbot.learnhelp.cc", inline=False)
         embed.add_field(name="Discord Server", value="https://discord.gg/9CFwFRPNH4", inline=False)
         embed.add_field(name="GitHub", value="https://github.com/pancakes-proxy/wdiscordbot", inline=False)
-        embed.add_field(name="Version", value="Offical Server Bot Version")
+        embed.add_field(name="Version", value=f"Official Server Bot Version\nCommit: `{commit_hash}`")
         embed.set_footer(text="Thank you for using the bot!")
         await interaction.response.send_message(embed=embed)
 
