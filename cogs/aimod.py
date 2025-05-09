@@ -424,7 +424,7 @@ class ModerationCog(commands.Cog):
 
     async def query_openrouter(self, message: discord.Message, message_content: str, user_history: str):
         """
-        Sends the message content and user history to the OpenRouter API for analysis.
+        Sends the message content, user history, and additional context to the OpenRouter API for analysis.
 
         Args:
             message: The original discord.Message object.
@@ -448,29 +448,32 @@ class ModerationCog(commands.Cog):
 
         # Construct the prompt for the AI model
         system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
-Your primary function is to analyze message content based STRICTLY on the server rules provided below.
+Your primary function is to analyze message content based STRICTLY on the server rules provided below, using all available context.
 
 Server Rules:
 ---
 {SERVER_RULES}
 ---
 
-User and Channel Context:
-You will be provided with the following information:
-- User's Server Role: The role of the user in the server (e.g., "Server Owner", "Admin", "Moderator", "Member").
-- Channel Category: The name of the category the channel belongs to (e.g., "General", "NSFW Zone", "Gaming").
-- Channel Age-Restricted (Discord Setting): A boolean (true/false) indicating if the channel is marked as age-restricted (NSFW) in Discord's settings.
+Context Provided:
+You will receive the following information to aid your analysis:
+- User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
+- Channel Category: The name of the category the channel belongs to.
+- Channel Age-Restricted (Discord Setting): Boolean (true/false).
+- Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
+- Recent Channel History: The last few messages in the channel to understand the flow of conversation.
 
 Instructions:
-1. Review the text content against EACH rule, considering the provided Channel Context.
-   - The "Channel Age-Restricted (Discord Setting)" is the definitive indicator of whether a channel is officially designated for NSFW content by Discord.
-   - The "Channel Category" can provide additional context (e.g., a channel in an "Art" category might have different expectations than one in "Memes").
-2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES and not targeted harassment or explicit rule violations.**
+1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
+   - The "Channel Age-Restricted (Discord Setting)" is the definitive indicator for NSFW content by Discord.
+   - The "Channel Category" provides general context.
+   - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
+2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
    - For Rule 1 (NSFW content):
-     - If "Channel Age-Restricted (Discord Setting)" is `true`, then more explicit content is generally permissible according to Rule 1, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
-     - If "Channel Age-Restricted (Discord Setting)" is `false`, then Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." Remember that the server rules state "Emojis, jokes and stickers are fine" outside NSFW channels. Only flag a Rule 1 violation for text if it's **explicitly pornographic or full-on explicit text that would qualify as actual pornography if written out**, not just suggestive emojis (like `:blowme:`), stickers, or dark/sexual jokes. These lighter elements, even if very edgy, are permissible in non-age-restricted channels.
-   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious**. This includes considering if a statement, even if technically offensive (e.g., calling someone "stupid," "an idiot," or other light insults), is delivered in a lighthearted, joking manner between users who have a rapport, versus a statement intended to genuinely demean or attack. The server allows for a high degree of "wild" statements and banter; differentiate this from actual bullying or harassment.
-   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context is key.
+     - If "Channel Age-Restricted (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
+     - If "Channel Age-Restricted (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
+   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
+   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
     - "violation": boolean (true if any rule is violated, false otherwise)
@@ -530,32 +533,69 @@ Example Response (Suicidal Content):
         elif member.guild_permissions.administrator:
             server_role_str = "Admin"
         else:
-            # Check for generic moderator permissions if not owner or admin
             perms = member.guild_permissions
             if perms.manage_messages or perms.kick_members or perms.ban_members or perms.moderate_members:
                 server_role_str = "Moderator"
-            # else, it remains "Member"
 
-        user_prompt_content_list = [
-            {
-                "type": "text",
-                "text": f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
+        # --- Fetch Replied-to Message ---
+        replied_to_message_content = "N/A (Not a reply)"
+        if message.reference and message.reference.message_id:
+            try:
+                replied_to_msg = await message.channel.fetch_message(message.reference.message_id)
+                replied_to_message_content = f"User '{replied_to_msg.author.name}' said: \"{replied_to_msg.content[:200]}\""
+                if len(replied_to_msg.content) > 200:
+                    replied_to_message_content += "..."
+            except discord.NotFound:
+                replied_to_message_content = "N/A (Replied-to message not found)"
+            except discord.Forbidden:
+                replied_to_message_content = "N/A (Cannot fetch replied-to message - permissions)"
+            except Exception as e:
+                replied_to_message_content = f"N/A (Error fetching replied-to message: {e})"
+
+        # --- Fetch Recent Channel History ---
+        recent_channel_history_str = "N/A (Could not fetch history)"
+        try:
+            history_messages = []
+            # Fetch last 11 messages (current + 10 previous). We'll filter out the current one.
+            async for prev_msg in message.channel.history(limit=11, before=message):
+                if prev_msg.id != message.id: # Ensure we don't include the current message itself
+                    history_messages.append(f"- {prev_msg.author.name}: \"{prev_msg.content[:150]}{'...' if len(prev_msg.content) > 150 else ''}\" (ID: {prev_msg.id})")
+            if history_messages:
+                # Reverse to show oldest first in the snippet, then take the last 10.
+                recent_channel_history_str = "\n".join(list(reversed(history_messages))[:10])
+            else:
+                recent_channel_history_str = "No recent messages before this one in the channel."
+        except discord.Forbidden:
+            recent_channel_history_str = "N/A (Cannot fetch channel history - permissions)"
+        except Exception as e:
+            recent_channel_history_str = f"N/A (Error fetching channel history: {e})"
+
+
+        user_prompt_text = f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
 ---
 {user_history if user_history else "No prior infractions recorded for this user in this guild."}
 ---
 
-Message Details:
+Current Message Context:
 - Author: {message.author.name} (ID: {message.author.id})
 - Server Role: {server_role_str}
 - Channel: #{message.channel.name} (ID: {message.channel.id})
 - Channel Category: {message.channel.category.name if message.channel.category else "No Category"}
 - Channel Age-Restricted (Discord Setting): {message.channel.is_nsfw()}
-- Message Content: "{message_content}"
+---
+Replied-to Message:
+{replied_to_message_content}
+---
+Recent Channel History (last up to 10 messages before this one):
+{recent_channel_history_str}
+---
+Message Content to Analyze:
+"{message_content}"
 
-Now, analyze the provided message content based on the rules and instructions given in the system prompt:
+Now, analyze the "Message Content to Analyze" based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
+Follow the JSON output format specified in the system prompt.
 """
-            }
-        ]
+        user_prompt_content_list = [{"type": "text", "text": user_prompt_text}]
 
         # Get guild-specific model if configured, otherwise use default
         guild_id = message.guild.id
