@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import asyncio
 
 # Load environment variables from absolute path
-load_dotenv("/home/server/keys.env")
+# load_dotenv("/home/server/keys.env")
 
 GENIUS_API_KEY = os.getenv("GENIUS_API_KEY")
 OPENROUTER_API_KEY = os.getenv("AI1_API_KEY")

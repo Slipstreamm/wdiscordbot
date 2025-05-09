@@ -5,6 +5,8 @@ from discord import app_commands
 import aiohttp # For making asynchronous HTTP requests
 import json
 import os # To load API key from environment variables
+import collections # For deque
+import datetime # For timestamps
 
 # --- Configuration ---
 # Load the OpenRouter API key from the environment variable "AI_API_KEY"
@@ -140,6 +142,9 @@ class ModerationCog(commands.Cog):
         self.bot = bot
         # Create a persistent session for making API requests
         self.session = aiohttp.ClientSession()
+        self.openrouter_models = []
+        self._load_openrouter_models()
+        self.last_ai_decisions = collections.deque(maxlen=5) # Store last 5 AI decisions
         print("ModerationCog Initialized.")
         # Check if the API key was successfully loaded from the environment variable
         if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
@@ -151,61 +156,115 @@ class ModerationCog(commands.Cog):
         else:
              print("Successfully loaded API key from AI_API_KEY environment variable.")
 
+    def _load_openrouter_models(self):
+        """Loads OpenRouter model data from the JSON file."""
+        models_json_path = "/home/server/wdiscordbotserver/data/openrouter_models.json" # Relative to bot's root
+        try:
+            if os.path.exists(models_json_path):
+                with open(models_json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if "data" in data and isinstance(data["data"], list):
+                        for model_info in data["data"]:
+                            if isinstance(model_info, dict) and "id" in model_info and "name" in model_info:
+                                self.openrouter_models.append(
+                                    {"id": model_info["id"], "name": model_info["name"]}
+                                )
+                        print(f"Successfully loaded {len(self.openrouter_models)} OpenRouter models for autocomplete.")
+                    else:
+                        print(f"Warning: {models_json_path} does not have the expected 'data' list structure.")
+            else:
+                print(f"Warning: {models_json_path} not found. AI_MODEL autocomplete will be empty.")
+        except json.JSONDecodeError:
+            print(f"Error: Could not decode JSON from {models_json_path}. AI_MODEL autocomplete will be empty.")
+        except Exception as e:
+            print(f"Error loading OpenRouter models from {models_json_path}: {e}. AI_MODEL autocomplete will be empty.")
+
 
     async def cog_unload(self):
         """Clean up the session when the cog is unloaded."""
         await self.session.close()
         print("ModerationCog Unloaded, session closed.")
 
-    MOD_KEYS = [
-        "MOD_LOG_CHANNEL_ID",
-        "MODERATOR_ROLE_ID",
-        "SUICIDAL_PING_ROLE_ID",
-        "SUGGESTIONS_CHANNEL_ID",
-        "NSFW_CHANNEL_IDS",
-        "AI_MODEL",
-    ]
+    # --- Moderation Configuration Command Group ---
+    modset_group = app_commands.Group(name="modset", description="Configure moderation settings (admin only).")
 
-    async def modset_key_autocomplete(
-        self,
-        interaction: discord.Interaction,
-        current: str
-    ):
-        return [
-            app_commands.Choice(name=k, value=k)
-            for k in self.MOD_KEYS if current.lower() in k.lower()
-        ]
+    @modset_group.command(name="log_channel", description="Set the moderation log channel.")
+    @app_commands.describe(channel="The text channel to use for moderation logs.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        set_guild_config(interaction.guild.id, "MOD_LOG_CHANNEL_ID", channel.id)
+        await interaction.response.send_message(f"Moderation log channel set to {channel.mention}.", ephemeral=False)
 
-    @app_commands.command(name="modset", description="Set a moderation config value for this guild (admin only).")
-    @app_commands.describe(key="Config key", value="Value (int, comma-separated list, or string)")
-    @app_commands.autocomplete(key=modset_key_autocomplete)
-    async def modset(
-        self,
-        interaction: discord.Interaction,
-        key: str,
-        value: str
-    ):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("You must be an administrator to use this command.", ephemeral=False)
-            return
-        if key not in self.MOD_KEYS:
-            await interaction.response.send_message(f"Invalid key. Choose from: {', '.join(self.MOD_KEYS)}", ephemeral=False)
-            return
+    @modset_group.command(name="suggestions_channel", description="Set the suggestions channel.")
+    @app_commands.describe(channel="The text channel to use for suggestions.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_suggestions_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        set_guild_config(interaction.guild.id, "SUGGESTIONS_CHANNEL_ID", channel.id)
+        await interaction.response.send_message(f"Suggestions channel set to {channel.mention}.", ephemeral=False)
+
+    @modset_group.command(name="moderator_role", description="Set the moderator role.")
+    @app_commands.describe(role="The role that identifies moderators.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_moderator_role(self, interaction: discord.Interaction, role: discord.Role):
+        set_guild_config(interaction.guild.id, "MODERATOR_ROLE_ID", role.id)
+        await interaction.response.send_message(f"Moderator role set to {role.mention}.", ephemeral=False)
+
+    @modset_group.command(name="suicidal_ping_role", description="Set the role to ping for suicidal content.")
+    @app_commands.describe(role="The role to ping for urgent suicidal content alerts.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_suicidal_ping_role(self, interaction: discord.Interaction, role: discord.Role):
+        set_guild_config(interaction.guild.id, "SUICIDAL_PING_ROLE_ID", role.id)
+        await interaction.response.send_message(f"Suicidal content ping role set to {role.mention}.", ephemeral=False)
+
+    @modset_group.command(name="add_nsfw_channel", description="Add a channel to the list of NSFW channels.")
+    @app_commands.describe(channel="The text channel to mark as NSFW for the bot.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_add_nsfw_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         guild_id = interaction.guild.id
-        # Try to parse value as int, list of ints, or fallback to string
-        parsed_value = value
-        if "," in value:
-            try:
-                parsed_value = [int(v.strip()) for v in value.split(",")]
-            except Exception:
-                parsed_value = [v.strip() for v in value.split(",")]
+        nsfw_channels: list[int] = get_guild_config(guild_id, "NSFW_CHANNEL_IDS", [])
+        if channel.id not in nsfw_channels:
+            nsfw_channels.append(channel.id)
+            set_guild_config(guild_id, "NSFW_CHANNEL_IDS", nsfw_channels)
+            await interaction.response.send_message(f"{channel.mention} added to NSFW channels list.", ephemeral=False)
         else:
-            try:
-                parsed_value = int(value)
-            except Exception:
-                pass
-        set_guild_config(guild_id, key, parsed_value)
-        await interaction.response.send_message(f"Set `{key}` to `{parsed_value}` for this guild.", ephemeral=False)
+            await interaction.response.send_message(f"{channel.mention} is already in the NSFW channels list.", ephemeral=True)
+
+    @modset_group.command(name="remove_nsfw_channel", description="Remove a channel from the list of NSFW channels.")
+    @app_commands.describe(channel="The text channel to remove from the NSFW list.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_remove_nsfw_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        guild_id = interaction.guild.id
+        nsfw_channels: list[int] = get_guild_config(guild_id, "NSFW_CHANNEL_IDS", [])
+        if channel.id in nsfw_channels:
+            nsfw_channels.remove(channel.id)
+            set_guild_config(guild_id, "NSFW_CHANNEL_IDS", nsfw_channels)
+            await interaction.response.send_message(f"{channel.mention} removed from NSFW channels list.", ephemeral=False)
+        else:
+            await interaction.response.send_message(f"{channel.mention} is not in the NSFW channels list.", ephemeral=True)
+
+    @modset_group.command(name="list_nsfw_channels", description="List currently configured NSFW channels.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def modset_list_nsfw_channels(self, interaction: discord.Interaction):
+        guild_id = interaction.guild.id
+        nsfw_channel_ids: list[int] = get_guild_config(guild_id, "NSFW_CHANNEL_IDS", [])
+        if not nsfw_channel_ids:
+            await interaction.response.send_message("No NSFW channels are currently configured.", ephemeral=False)
+            return
+
+        channel_mentions = []
+        for channel_id in nsfw_channel_ids:
+            channel_obj = interaction.guild.get_channel(channel_id)
+            if channel_obj:
+                channel_mentions.append(channel_obj.mention)
+            else:
+                channel_mentions.append(f"ID:{channel_id} (not found)")
+        
+        await interaction.response.send_message(f"Configured NSFW channels:\n- " + "\n- ".join(channel_mentions), ephemeral=False)
+
+    # Note: The @app_commands.command(name="modenable", ...) and other commands like
+    # viewinfractions, clearinfractions, modsetmodel, modgetmodel remain as top-level commands
+    # as they were not part of the original "modset" generic command structure.
+    # If these also need to be grouped, that would be a separate consideration.
 
     @app_commands.command(name="modenable", description="Enable or disable moderation for this guild (admin only).")
     @app_commands.describe(enabled="Enable moderation (true/false)")
@@ -311,6 +370,30 @@ class ModerationCog(commands.Cog):
 
         await interaction.response.send_message(f"AI moderation model updated to `{model}` for this guild.", ephemeral=False)
 
+    @modsetmodel.autocomplete('model')
+    async def modsetmodel_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str
+    ) -> list[app_commands.Choice[str]]:
+        print(f"[DEBUG] modsetmodel_autocomplete triggered. Current input: '{current}'")
+        if not self.openrouter_models:
+            print("[DEBUG] modsetmodel_autocomplete: openrouter_models list is empty or not loaded.")
+            return [app_commands.Choice(name="⚠️ Models not loaded", value="")]
+
+        print(f"[DEBUG] modsetmodel_autocomplete: Filtering {len(self.openrouter_models)} models with current: '{current}'")
+        filtered_models = [
+            m for m in self.openrouter_models
+            if current.lower() in m["name"].lower() or current.lower() in m["id"].lower()
+        ][:25]
+        
+        choices_to_return = [
+            app_commands.Choice(name=m["name"][:100], value=m["id"][:100]) # Truncate name/value
+            for m in filtered_models
+        ]
+        print(f"[DEBUG] modsetmodel_autocomplete returning {len(choices_to_return)} choices: {choices_to_return[:5]}")
+        return choices_to_return
+
     @app_commands.command(name="modgetmodel", description="View the current AI model used for moderation.")
     async def modgetmodel(self, interaction: discord.Interaction):
         # Get the model from guild config, fall back to global default
@@ -329,13 +412,15 @@ class ModerationCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    async def setup_hook(self):
-        self.bot.tree.add_command(self.modset)
-        self.bot.tree.add_command(self.modenable)
-        self.bot.tree.add_command(self.viewinfractions)
-        self.bot.tree.add_command(self.clearinfractions)
-        self.bot.tree.add_command(self.modsetmodel)
-        self.bot.tree.add_command(self.modgetmodel)
+    # Removed setup_hook as commands defined with @app_commands.command in a Cog
+    # are typically automatically registered when the cog is added.
+    # async def setup_hook(self):
+    #     self.bot.tree.add_command(self.modset)
+    #     self.bot.tree.add_command(self.modenable)
+    #     self.bot.tree.add_command(self.viewinfractions)
+    #     self.bot.tree.add_command(self.clearinfractions)
+    #     self.bot.tree.add_command(self.modsetmodel)
+    #     self.bot.tree.add_command(self.modgetmodel)
 
     async def query_openrouter(self, message: discord.Message, message_content: str, user_history: str):
         """
@@ -370,10 +455,19 @@ Server Rules:
 {SERVER_RULES}
 ---
 
+Channel Context:
+You will be provided with the following information about the channel where the message was sent:
+- Channel Category: The name of the category the channel belongs to (e.g., "General", "NSFW Zone", "Gaming").
+- Channel Age-Restricted (Discord Setting): A boolean (true/false) indicating if the channel is marked as age-restricted (NSFW) in Discord's settings.
+
 Instructions:
-1. Review the text content against EACH rule.
+1. Review the text content against EACH rule, considering the provided Channel Context.
+   - The "Channel Age-Restricted (Discord Setting)" is the definitive indicator of whether a channel is officially designated for NSFW content by Discord.
+   - The "Channel Category" can provide additional context (e.g., a channel in an "Art" category might have different expectations than one in "Memes").
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES and not targeted harassment or explicit rule violations.**
-   - For Rule 1 (NSFW content): Remember that the server rules state "Emojis, jokes and stickers are fine" outside NSFW channels. Only flag a Rule 1 violation for text if it's **explicitly pornographic or full-on explicit text that would qualify as actual pornography if written out**, not just suggestive emojis (like `:blowme:`), stickers, or dark/sexual jokes. These lighter elements, even if very edgy, are permissible.
+   - For Rule 1 (NSFW content):
+     - If "Channel Age-Restricted (Discord Setting)" is `true`, then more explicit content is generally permissible according to Rule 1, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
+     - If "Channel Age-Restricted (Discord Setting)" is `false`, then Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." Remember that the server rules state "Emojis, jokes and stickers are fine" outside NSFW channels. Only flag a Rule 1 violation for text if it's **explicitly pornographic or full-on explicit text that would qualify as actual pornography if written out**, not just suggestive emojis (like `:blowme:`), stickers, or dark/sexual jokes. These lighter elements, even if very edgy, are permissible in non-age-restricted channels.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious**. This includes considering if a statement, even if technically offensive (e.g., calling someone "stupid," "an idiot," or other light insults), is delivered in a lighthearted, joking manner between users who have a rapport, versus a statement intended to genuinely demean or attack. The server allows for a high degree of "wild" statements and banter; differentiate this from actual bullying or harassment.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context is key.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
@@ -438,6 +532,8 @@ Example Response (Suicidal Content):
 Message Details:
 - Author: {message.author.name} (ID: {message.author.id})
 - Channel: #{message.channel.name} (ID: {message.channel.id})
+- Channel Category: {message.channel.category.name if message.channel.category else "No Category"}
+- Channel Age-Restricted (Discord Setting): {message.channel.is_nsfw()}
 - Message Content: "{message_content}"
 
 Now, analyze the provided message content based on the rules and instructions given in the system prompt:
@@ -551,6 +647,9 @@ Now, analyze the provided message content based on the rules and instructions gi
 
         current_timestamp_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+        # Get the model from guild config, fall back to global default (moved up from line 609)
+        model_used = get_guild_config(guild_id, "AI_MODEL", OPENROUTER_MODEL)
+
         # --- Transmit action info over HTTP POST ---
         try:
             mod_log_api_secret = os.getenv("MOD_LOG_API_SECRET")
@@ -605,8 +704,7 @@ Now, analyze the provided message content based on the rules and instructions gi
         # Log message content and attachments for audit purposes
         msg_content = message.content if message.content else "*No text content*"
         notification_embed.add_field(name="Message Content", value=msg_content[:1024], inline=False)
-        # Get the model from guild config, fall back to global default
-        model_used = get_guild_config(guild_id, "AI_MODEL", OPENROUTER_MODEL)
+        # Use the model_used variable that was defined earlier
         notification_embed.set_footer(text=f"AI Model: {model_used}")
         notification_embed.timestamp = discord.utils.utcnow() # Using discord.utils.utcnow() which is still supported
 
@@ -851,7 +949,26 @@ Now, analyze the provided message content based on the rules and instructions gi
         if not ai_decision:
             print(f"Failed to get valid AI decision for message {message.id}.")
             # Optionally notify mods about AI failure if it happens often
+            # Store the failure attempt for debugging
+            self.last_ai_decisions.append({
+                "message_id": message.id,
+                "author_name": str(message.author),
+                "author_id": message.author.id,
+                "message_content_snippet": message.content[:100] + "..." if len(message.content) > 100 else message.content,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "ai_decision": {"error": "Failed to get valid AI decision", "raw_response": None} # Simplified error logging
+            })
             return # Stop if AI fails or returns invalid data
+
+        # Store the AI decision regardless of violation status
+        self.last_ai_decisions.append({
+            "message_id": message.id,
+            "author_name": str(message.author),
+            "author_id": message.author.id,
+            "message_content_snippet": message.content[:100] + "..." if len(message.content) > 100 else message.content,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "ai_decision": ai_decision
+        })
 
         # Check if the AI flagged a violation
         if ai_decision.get("violation"):
@@ -860,6 +977,69 @@ Now, analyze the provided message content based on the rules and instructions gi
         else:
             # AI found no violation
             print(f"AI analysis complete for message {message.id}. No violation detected.")
+
+    @app_commands.command(name="aidebug_last_decisions", description="View the last 5 AI moderation decisions (admin only).")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def aidebug_last_decisions(self, interaction: discord.Interaction):
+        if not self.last_ai_decisions:
+            await interaction.response.send_message("No AI decisions have been recorded yet.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="Last 5 AI Moderation Decisions",
+            color=discord.Color.purple()
+        )
+        embed.timestamp = discord.utils.utcnow()
+
+        for i, record in enumerate(reversed(list(self.last_ai_decisions))): # Show newest first
+            decision_info = record.get("ai_decision", {})
+            violation = decision_info.get("violation", "N/A")
+            rule_violated = decision_info.get("rule_violated", "N/A")
+            reasoning = decision_info.get("reasoning", "N/A")
+            action = decision_info.get("action", "N/A")
+            error_msg = decision_info.get("error")
+
+            field_value = (
+                f"**Author:** {record.get('author_name', 'N/A')} ({record.get('author_id', 'N/A')})\n"
+                f"**Message ID:** {record.get('message_id', 'N/A')}\n"
+                f"**Content Snippet:** ```{record.get('message_content_snippet', 'N/A')}```\n"
+                f"**Timestamp:** {record.get('timestamp', 'N/A')[:19].replace('T', ' ')}\n"
+            )
+            if error_msg:
+                field_value += f"**Status:** <font color='red'>Error during processing: {error_msg}</font>\n"
+            else:
+                field_value += (
+                    f"**Violation:** {violation}\n"
+                    f"**Rule Violated:** {rule_violated}\n"
+                    f"**Action:** {action}\n"
+                    f"**Reasoning:** ```{reasoning}```\n"
+                )
+            
+            # Truncate field_value if it's too long for an embed field
+            if len(field_value) > 1024:
+                field_value = field_value[:1020] + "..."
+
+            embed.add_field(
+                name=f"Decision #{len(self.last_ai_decisions) - i}",
+                value=field_value,
+                inline=False
+            )
+            if len(embed.fields) >= 5: # Limit to 5 fields in one embed for very long entries, or send multiple embeds
+                break
+        
+        if not embed.fields: # Should not happen if self.last_ai_decisions is not empty
+             await interaction.response.send_message("Could not format AI decisions.", ephemeral=True)
+             return
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @aidebug_last_decisions.error
+    async def aidebug_last_decisions_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("You must be an administrator to use this command.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"An error occurred: {error}", ephemeral=True)
+            print(f"Error in aidebug_last_decisions command: {error}")
 
 
 # Setup function required by discord.py to load the cog
@@ -873,6 +1053,6 @@ async def setup(bot: commands.Bot):
         print("*** Moderation Cog will load but WILL NOT function. ***")
         print("*"*60 + "\n")
         # You could choose to raise an error here to prevent the bot from starting
-        # raise ValueError("AI_API_KEY environment variable is not configured. Cannot load ModerationCog.")
+        raise ValueError("AI_API_KEY environment variable is not configured. Cannot load ModerationCog.")
     await bot.add_cog(ModerationCog(bot))
     print("ModerationCog has been loaded.")
