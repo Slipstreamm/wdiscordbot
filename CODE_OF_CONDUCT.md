@@ -49,7 +49,7 @@ WDiscordBot Rules and Security Policies
 3. **Attribution Requirements:**
    - Any derivative work or modification of the bot’s code must include a clear credit line to the original developers:
      ```
-     Original Code Developed by Zacarias Posey, Izzy Perez, Milly, and JW.
+     Original Code Developed by Zacarias Posey, Izzy Perez, Milly, Lillian, and JW.
      ```
    - Failure to include attribution may result in removal requests, legal action, or a copyright takedown notice.
 
