@@ -24,7 +24,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="/", intents=intents)
 
 # User ID to send error notifications to
-ERROR_NOTIFICATION_USER_ID = 452666956353503252
+ERROR_NOTIFICATION_USER_ID = 1141746562922459136
 
 # Decorator to catch and report exceptions in any function
 def catch_exceptions(func):
