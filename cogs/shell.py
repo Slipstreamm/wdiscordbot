@@ -51,9 +51,14 @@ class Shell(commands.Cog):
 
     @app_commands.command(name='shell_app', description='Executes a shell command (Owner only).')
     @app_commands.describe(command='The shell command to execute')
-    @app_commands.is_owner()
     async def shell_app_command(self, interaction: discord.Interaction, command: str):
         """Executes a shell command using application commands (Owner only)."""
+        # Check if the user ID matches the specified owner ID
+        owner_id = 1141746562922459136
+        if interaction.user.id != owner_id:
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            return
+
         await interaction.response.defer() # Defer the response as command execution might take time
         try:
             # Execute the command
