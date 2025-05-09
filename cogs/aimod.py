@@ -455,8 +455,9 @@ Server Rules:
 {SERVER_RULES}
 ---
 
-Channel Context:
-You will be provided with the following information about the channel where the message was sent:
+User and Channel Context:
+You will be provided with the following information:
+- User's Server Role: The role of the user in the server (e.g., "Server Owner", "Admin", "Moderator", "Member").
 - Channel Category: The name of the category the channel belongs to (e.g., "General", "NSFW Zone", "Gaming").
 - Channel Age-Restricted (Discord Setting): A boolean (true/false) indicating if the channel is marked as age-restricted (NSFW) in Discord's settings.
 
@@ -521,6 +522,20 @@ Example Response (Suicidal Content):
 }}
 """
 
+        member = message.author # This is a discord.Member object
+        server_role_str = "Member" # Default
+
+        if member == message.guild.owner:
+            server_role_str = "Server Owner"
+        elif member.guild_permissions.administrator:
+            server_role_str = "Admin"
+        else:
+            # Check for generic moderator permissions if not owner or admin
+            perms = member.guild_permissions
+            if perms.manage_messages or perms.kick_members or perms.ban_members or perms.moderate_members:
+                server_role_str = "Moderator"
+            # else, it remains "Member"
+
         user_prompt_content_list = [
             {
                 "type": "text",
@@ -531,6 +546,7 @@ Example Response (Suicidal Content):
 
 Message Details:
 - Author: {message.author.name} (ID: {message.author.id})
+- Server Role: {server_role_str}
 - Channel: #{message.channel.name} (ID: {message.channel.id})
 - Channel Category: {message.channel.category.name if message.channel.category else "No Category"}
 - Channel Age-Restricted (Discord Setting): {message.channel.is_nsfw()}
