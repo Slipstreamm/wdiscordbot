@@ -556,7 +556,7 @@ Example Response (Suicidal Content):
         recent_channel_history_str = "N/A (Could not fetch history)"
         try:
             history_messages = []
-            # Fetch last 11 messages (current + 10 previous). We'll filter out the current one.
+            # Fetch last 11 messages (current + 10 previous). We'll filter out the current one
             async for prev_msg in message.channel.history(limit=11, before=message):
                 if prev_msg.id != message.id: # Ensure we don't include the current message itself
                     history_messages.append(f"- {prev_msg.author.name}: \"{prev_msg.content[:150]}{'...' if len(prev_msg.content) > 150 else ''}\" (ID: {prev_msg.id})")
