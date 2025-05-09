@@ -5,6 +5,8 @@ from discord import app_commands
 import aiohttp # For making asynchronous HTTP requests
 import json
 import os # To load API key from environment variables
+import collections # For deque
+import datetime # For timestamps
 
 # --- Configuration ---
 # Load the OpenRouter API key from the environment variable "AI_API_KEY"
@@ -142,6 +144,7 @@ class ModerationCog(commands.Cog):
         self.session = aiohttp.ClientSession()
         self.openrouter_models = []
         self._load_openrouter_models()
+        self.last_ai_decisions = collections.deque(maxlen=5) # Store last 5 AI decisions
         print("ModerationCog Initialized.")
         # Check if the API key was successfully loaded from the environment variable
         if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
@@ -946,7 +949,26 @@ Now, analyze the provided message content based on the rules and instructions gi
         if not ai_decision:
             print(f"Failed to get valid AI decision for message {message.id}.")
             # Optionally notify mods about AI failure if it happens often
+            # Store the failure attempt for debugging
+            self.last_ai_decisions.append({
+                "message_id": message.id,
+                "author_name": str(message.author),
+                "author_id": message.author.id,
+                "message_content_snippet": message.content[:100] + "..." if len(message.content) > 100 else message.content,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "ai_decision": {"error": "Failed to get valid AI decision", "raw_response": None} # Simplified error logging
+            })
             return # Stop if AI fails or returns invalid data
+
+        # Store the AI decision regardless of violation status
+        self.last_ai_decisions.append({
+            "message_id": message.id,
+            "author_name": str(message.author),
+            "author_id": message.author.id,
+            "message_content_snippet": message.content[:100] + "..." if len(message.content) > 100 else message.content,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "ai_decision": ai_decision
+        })
 
         # Check if the AI flagged a violation
         if ai_decision.get("violation"):
@@ -955,6 +977,69 @@ Now, analyze the provided message content based on the rules and instructions gi
         else:
             # AI found no violation
             print(f"AI analysis complete for message {message.id}. No violation detected.")
+
+    @app_commands.command(name="aidebug_last_decisions", description="View the last 5 AI moderation decisions (admin only).")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def aidebug_last_decisions(self, interaction: discord.Interaction):
+        if not self.last_ai_decisions:
+            await interaction.response.send_message("No AI decisions have been recorded yet.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="Last 5 AI Moderation Decisions",
+            color=discord.Color.purple()
+        )
+        embed.timestamp = discord.utils.utcnow()
+
+        for i, record in enumerate(reversed(list(self.last_ai_decisions))): # Show newest first
+            decision_info = record.get("ai_decision", {})
+            violation = decision_info.get("violation", "N/A")
+            rule_violated = decision_info.get("rule_violated", "N/A")
+            reasoning = decision_info.get("reasoning", "N/A")
+            action = decision_info.get("action", "N/A")
+            error_msg = decision_info.get("error")
+
+            field_value = (
+                f"**Author:** {record.get('author_name', 'N/A')} ({record.get('author_id', 'N/A')})\n"
+                f"**Message ID:** {record.get('message_id', 'N/A')}\n"
+                f"**Content Snippet:** ```{record.get('message_content_snippet', 'N/A')}```\n"
+                f"**Timestamp:** {record.get('timestamp', 'N/A')[:19].replace('T', ' ')}\n"
+            )
+            if error_msg:
+                field_value += f"**Status:** <font color='red'>Error during processing: {error_msg}</font>\n"
+            else:
+                field_value += (
+                    f"**Violation:** {violation}\n"
+                    f"**Rule Violated:** {rule_violated}\n"
+                    f"**Action:** {action}\n"
+                    f"**Reasoning:** ```{reasoning}```\n"
+                )
+            
+            # Truncate field_value if it's too long for an embed field
+            if len(field_value) > 1024:
+                field_value = field_value[:1020] + "..."
+
+            embed.add_field(
+                name=f"Decision #{len(self.last_ai_decisions) - i}",
+                value=field_value,
+                inline=False
+            )
+            if len(embed.fields) >= 5: # Limit to 5 fields in one embed for very long entries, or send multiple embeds
+                break
+        
+        if not embed.fields: # Should not happen if self.last_ai_decisions is not empty
+             await interaction.response.send_message("Could not format AI decisions.", ephemeral=True)
+             return
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @aidebug_last_decisions.error
+    async def aidebug_last_decisions_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("You must be an administrator to use this command.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"An error occurred: {error}", ephemeral=True)
+            print(f"Error in aidebug_last_decisions command: {error}")
 
 
 # Setup function required by discord.py to load the cog
