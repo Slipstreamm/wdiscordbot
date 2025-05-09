@@ -110,20 +110,24 @@ class Core(commands.Cog):
         try:
             # Use a simpler approach for CPU name to avoid potential slowdowns
             if platform.system() == "Windows":
-                cpu_name = platform.processor()
+                cpu_name_base = platform.processor()
             elif platform.system() == "Linux":
                 try:
                     with open("/proc/cpuinfo", "r") as f:
                         for line in f:
                             if line.startswith("model name"):
-                                cpu_name = line.split(":")[1].strip()
+                                cpu_name_base = line.split(":")[1].strip()
                                 break
                         else:
-                            cpu_name = "Unknown CPU"
+                            cpu_name_base = "Unknown CPU"
                 except:
-                    cpu_name = platform.processor() or "Unknown CPU"
+                    cpu_name_base = platform.processor() or "Unknown CPU"
             else:
-                cpu_name = platform.processor() or "Unknown CPU"
+                cpu_name_base = platform.processor() or "Unknown CPU"
+
+            physical_cores = psutil.cpu_count(logical=False)
+            total_threads = psutil.cpu_count(logical=True)
+            cpu_name = f"{cpu_name_base} ({physical_cores}C/{total_threads}T)"
         except Exception as e:
             print(f"Error getting CPU info: {e}")
             cpu_name = "N/A"
