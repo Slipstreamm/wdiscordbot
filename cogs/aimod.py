@@ -670,7 +670,7 @@ Now, analyze the provided message content based on the rules and instructions gi
         try:
             mod_log_api_secret = os.getenv("MOD_LOG_API_SECRET")
             if mod_log_api_secret:
-                post_url = f"https://slipstreamm.dev/dashboard/api/guilds/{guild_id}/ai-moderation-action"
+                post_url = f"https://slipstreamm.dev/dashboard/api/guilds/{guild_id}/ai-moderation-action" #will be replaceing later with the Learnhelp API
                 payload = {
                     "timestamp": current_timestamp_iso,
                     "guild_id": guild_id,
@@ -721,7 +721,7 @@ Now, analyze the provided message content based on the rules and instructions gi
         msg_content = message.content if message.content else "*No text content*"
         notification_embed.add_field(name="Message Content", value=msg_content[:1024], inline=False)
         # Use the model_used variable that was defined earlier
-        notification_embed.set_footer(text=f"AI Model: {model_used}")
+        notification_embed.set_footer(text=f"AI Model: {model_used}. Learnhelp AI Moderation.")
         notification_embed.timestamp = discord.utils.utcnow() # Using discord.utils.utcnow() which is still supported
 
         action_taken_message = "" # To append to the notification
