@@ -1,10 +1,10 @@
 # cogs/core.py
 import os
 import platform
-import psutil
-import discord
-from discord.ext import commands
-from discord import app_commands
+import psutil # type: ignore
+import discord # type: ignore
+from discord.ext import commands # type: ignore
+from discord import app_commands # type: ignore
 import shutil
 import subprocess
 import sys

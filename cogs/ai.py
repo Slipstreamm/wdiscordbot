@@ -1,16 +1,16 @@
-import discord
-import discord
+import discord # type: ignore
+import discord # type: ignore
 import json
 import os
-import aiohttp
+import aiohttp # type: ignore
 import asyncio
 import random # Added for emoji reactions
 import re
 import urllib.parse
 import subprocess
 from datetime import datetime, timedelta
-from discord.ext import commands
-from discord import app_commands
+from discord.ext import commands # type: ignore
+from discord import app_commands # type: ignore
 from typing import Optional, Dict, List, Any # Added Any
 
 # Define paths for persistent data - ENSURE THESE DIRECTORIES ARE WRITABLE
@@ -819,7 +819,7 @@ class AICog(commands.Cog):
     # -------------------------
 
     # --- Slash Commands ---
-    @app_commands.command(name="talk", description="Have a chat with Kasane Teto!")
+    @app_commands.command(name="talk")
     @app_commands.describe(prompt="What do you want to say to Teto?")
     async def slash_ai(self, interaction: discord.Interaction, prompt: str):
         await interaction.response.defer()
@@ -853,8 +853,8 @@ class AICog(commands.Cog):
         temperature: Optional[app_commands.Range[float,0.0,2.0]] = None, 
         max_tokens: Optional[app_commands.Range[int, 1, 16384]] = None,
         top_p: Optional[app_commands.Range[float, 0.0, 1.0]] = None,
-        frequency_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None,
-        presence_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None
+        frequency_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None, # type: ignore
+        presence_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None # type: ignore
     ):
          # (Implementation remains the same, using Range for validation)
         await interaction.response.defer(ephemeral=True) 
