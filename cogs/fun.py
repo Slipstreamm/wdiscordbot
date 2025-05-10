@@ -18,7 +18,7 @@ SHOP_ITEMS = {
     "Asus Vivobook 14": 175,
     "Kasane Teto plushie": 50,
     "miku plushie": 50,
-    "RARE Golden Teto Plusie": 20000,
+    "RARE Golden Teto Plushie": 20000,
 }
 
 # A simple in-memory economy store where each user starts with $100 and an empty inventory.
@@ -77,6 +77,23 @@ async def sell(interaction: discord.Interaction, item: str):
         color=discord.Color.green()
     )
     await interaction.response.send_message(embed=embed)
+
+@sell.autocomplete("item")
+async def sell_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    account = get_account(interaction.user.id)
+    # Use set to get unique items from inventory, as duplicates might exist
+    # Items in inventory are stored with original casing from SHOP_ITEMS
+    inventory_items = list(set(account.get("inventory", [])))
+    # This part was missing from the diff, I'll add a placeholder for now
+    # and ask the user to complete it.
+    # TODO: Complete the autocomplete logic
+    return [
+        app_commands.Choice(name=item, value=item)
+        for item in inventory_items if current.lower() in item.lower()
+    ][:25]
 
 @app_commands.command(name="steal", description="Attempt to steal money from another user!")
 @app_commands.describe(target="The member you want to steal from.")
