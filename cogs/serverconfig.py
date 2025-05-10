@@ -157,5 +157,5 @@ class ServerConfigCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     # Register the global check – it will run for every application (slash) command.
-    bot.tree.add_check(global_disabled_check)
+    bot.tree.interaction_check = global_disabled_check
     await bot.add_cog(ServerConfigCog(bot))

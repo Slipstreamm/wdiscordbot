@@ -293,13 +293,15 @@ class Rule34Cog(commands.Cog):
             # Edit the original loading message with the error
             await loading_msg.edit(content=response, view=None) # Remove view on error
 
-    # --- Slash Command ---
-    @app_commands.command(name="rule34", description="Get random image from rule34 with specified tags")
+    # --- App Command Group ---
+    rule34_app_group = app_commands.Group(name="rule34", description="Commands for interacting with Rule34.")
+
+    @rule34_app_group.command(name="random", description="Get random image from rule34 with specified tags")
     @app_commands.describe(
         tags="The tags to search for (e.g., 'kasane_teto rating:safe')",
         hidden="Set to True to make the response visible only to you (default: False)"
     )
-    async def rule34_slash(self, interaction: discord.Interaction, tags: str, hidden: bool = False):
+    async def rule34_slash_random(self, interaction: discord.Interaction, tags: str, hidden: bool = False):
         """Slash command version of rule34."""
         # Pass hidden parameter to logic
         response = await self._rule34_logic(interaction, tags, hidden=hidden)
@@ -319,17 +321,16 @@ class Rule34Cog(commands.Cog):
                 try:
                     await interaction.followup.send(response, ephemeral=hidden)
                 except discord.errors.NotFound:
-                    print(f"Rule34 slash command: Interaction expired before sending error followup for tags '{tags}'.")
+                    print(f"Rule34 slash random command: Interaction expired before sending error followup for tags '{tags}'.")
                 except discord.HTTPException as e:
-                    print(f"Rule34 slash command: Failed to send error followup for tags '{tags}': {e}")
+                    print(f"Rule34 slash random command: Failed to send error followup for tags '{tags}': {e}")
 
-    # --- New Browse Command ---
-    @app_commands.command(name="rule34browse", description="Browse Rule34 results with navigation buttons")
+    @rule34_app_group.command(name="browse", description="Browse Rule34 results with navigation buttons")
     @app_commands.describe(
         tags="The tags to search for (e.g., 'kasane_teto rating:safe')",
         hidden="Set to True to make the response visible only to you (default: False)"
     )
-    async def rule34_browse(self, interaction: discord.Interaction, tags: str, hidden: bool = False):
+    async def rule34_slash_browse(self, interaction: discord.Interaction, tags: str, hidden: bool = False):
         """Browse Rule34 results with navigation buttons."""
         response = await self._rule34_logic(interaction, tags, hidden=hidden)
         
@@ -337,7 +338,11 @@ class Rule34Cog(commands.Cog):
             _, all_results = response
             if len(all_results) == 0:
                 content = "No results found"
-                await interaction.response.send_message(content, ephemeral=hidden)
+                # Check if response is done before sending
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(content, ephemeral=hidden)
+                else:
+                    await interaction.followup.send(content, ephemeral=hidden)
                 return
                 
             result = all_results[0]
@@ -358,7 +363,6 @@ class Rule34Cog(commands.Cog):
                     print(f"Rule34 browse command: Interaction expired before sending error followup for tags '{tags}'.")
                 except discord.HTTPException as e:
                     print(f"Rule34 browse command: Failed to send error followup for tags '{tags}': {e}")
-
 
 async def setup(bot):
     await bot.add_cog(Rule34Cog(bot))

@@ -1,36 +1,41 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 class RoleManagerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_command(
-        name="createrole",
-        help=(
-            "Creates a new role. Usage: /createrole <role name> <permissions> <color>\n"
-            "• permissions: Comma-separated list of permission names (e.g. send_messages, manage_channels)\n"
-            "• color: A hex color value (e.g. #FF5733)"
-        )
+    role_group = app_commands.Group(name="role", description="Commands for managing server roles.")
+
+    @role_group.command(
+        name="create",
+        description="Creates a new role with specified permissions and color."
     )
-    @commands.has_permissions(manage_roles=True)
-    async def createrole(self, ctx, role_name: str, perms: str, color: str):
+    @app_commands.describe(
+        role_name="The name for the new role.",
+        perms="Comma-separated permissions (e.g., send_messages,manage_channels).",
+        color="Hex color value for the role (e.g., #FF5733)."
+    )
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def role_create(self, interaction: discord.Interaction, role_name: str, perms: str, color: str):
+        # Using interaction context now
         # Parse the permissions string into a discord.Permissions object.
         valid_perms = discord.Permissions.VALID_FLAGS
         kwargs = {}
         # Split by comma then go through each provided permission name.
-        for perm in perms.split(','):
-            perm_clean = perm.strip().lower()
+        for perm_name_str in perms.split(','): # Renamed perm to perm_name_str
+            perm_clean = perm_name_str.strip().lower()
             if perm_clean in valid_perms:
                 kwargs[perm_clean] = True
             else:
-                await ctx.send(f"Invalid permission name: `{perm_clean}`")
+                await interaction.response.send_message(f"Invalid permission name: `{perm_clean}`", ephemeral=True)
                 return
 
         try:
             role_perms = discord.Permissions(**kwargs)
         except Exception as e:
-            await ctx.send(f"Error setting permissions: {e}")
+            await interaction.response.send_message(f"Error setting permissions: {e}", ephemeral=True)
             return
 
         # Parse the hex color.
@@ -39,25 +44,26 @@ class RoleManagerCog(commands.Cog):
             color_int = int(color.lstrip('#'), 16)
             role_color = discord.Color(color_int)
         except ValueError:
-            await ctx.send("Invalid color format. Please provide a valid hex value (e.g. #FF5733).")
+            await interaction.response.send_message("Invalid color format. Please provide a valid hex value (e.g. #FF5733).", ephemeral=True)
             return
 
         try:
-            role = await ctx.guild.create_role(
+            new_role = await interaction.guild.create_role( # Renamed role to new_role
                 name=role_name,
                 permissions=role_perms,
                 colour=role_color,
-                reason=f"Role created by {ctx.author}"
+                reason=f"Role created by {interaction.user}"
             )
-            await ctx.send(f"Role `{role.name}` created successfully.")
+            await interaction.response.send_message(f"Role `{new_role.name}` created successfully.")
         except Exception as e:
-            await ctx.send(f"Failed to create role: {e}")
+            await interaction.response.send_message(f"Failed to create role: {e}", ephemeral=True)
 
-    @commands.hybrid_command(
-        name="viewroleperms",
-        help="Displays the enabled permissions of a role. Usage: /viewroleperms <role>"
+    @role_group.command(
+        name="viewperms",
+        description="Displays the enabled permissions of a role."
     )
-    async def viewroleperms(self, ctx, role: discord.Role):
+    @app_commands.describe(role="The role to view permissions for.")
+    async def role_viewperms(self, interaction: discord.Interaction, role: discord.Role):
         # Convert the permissions to a dictionary and build a list of enabled permissions.
         perms_dict = role.permissions.to_dict()
         enabled_perms = [perm.replace("_", " ").title() for perm, value in perms_dict.items() if value]
@@ -67,31 +73,33 @@ class RoleManagerCog(commands.Cog):
             description=description,
             color=role.colour
         )
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
-    @commands.hybrid_command(
-        name="addrole",
-        help="Adds a role to a member. Usage: /addrole <member> <role>"
+    @role_group.command(
+        name="add",
+        description="Adds a role to a member."
     )
-    @commands.has_permissions(manage_roles=True)
-    async def addrole(self, ctx, member: discord.Member, role: discord.Role):
+    @app_commands.describe(member="The member to add the role to.", role="The role to add.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def role_add(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         try:
-            await member.add_roles(role, reason=f"Role added by {ctx.author}")
-            await ctx.send(f"Role `{role.name}` added to {member.mention}.")
+            await member.add_roles(role, reason=f"Role added by {interaction.user}")
+            await interaction.response.send_message(f"Role `{role.name}` added to {member.mention}.")
         except Exception as e:
-            await ctx.send(f"Failed to add role: {e}")
+            await interaction.response.send_message(f"Failed to add role: {e}", ephemeral=True)
 
-    @commands.hybrid_command(
-        name="removerole",
-        help="Removes a role from a member. Usage: /removerole <member> <role>"
+    @role_group.command(
+        name="remove",
+        description="Removes a role from a member."
     )
-    @commands.has_permissions(manage_roles=True)
-    async def removerole(self, ctx, member: discord.Member, role: discord.Role):
+    @app_commands.describe(member="The member to remove the role from.", role="The role to remove.")
+    @app_commands.checks.has_permissions(manage_roles=True)
+    async def role_remove(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         try:
-            await member.remove_roles(role, reason=f"Role removed by {ctx.author}")
-            await ctx.send(f"Role `{role.name}` removed from {member.mention}.")
+            await member.remove_roles(role, reason=f"Role removed by {interaction.user}")
+            await interaction.response.send_message(f"Role `{role.name}` removed from {member.mention}.")
         except Exception as e:
-            await ctx.send(f"Failed to remove role: {e}")
+            await interaction.response.send_message(f"Failed to remove role: {e}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(RoleManagerCog(bot))

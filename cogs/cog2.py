@@ -1,5 +1,10 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
+
+# Define the owner check predicate
+async def owner_check_predicate(interaction: discord.Interaction) -> bool:
+    return await interaction.client.is_owner(interaction.user)
 
 class CogManagerCog(commands.Cog):
     def __init__(self, bot):
@@ -11,86 +16,92 @@ class CogManagerCog(commands.Cog):
             return "\n".join(sorted(self.bot.extensions.keys()))
         return "No extensions loaded."
 
-    @commands.hybrid_command(name="loadedcogs", help="Displays all loaded cogs/extensions.")
-    @commands.is_owner()
-    async def loadedcogs(self, ctx):
+    cogctl_group = app_commands.Group(name="cogctl", description="Commands for managing bot cogs. (Owner Only)")
+
+    @cogctl_group.command(name="list", description="Displays all loaded cogs/extensions.")
+    @app_commands.check(owner_check_predicate)
+    async def cogctl_list(self, interaction: discord.Interaction):
         loaded = self.format_loaded_cogs()
         message = f"Loaded Cogs:\n{loaded}"
-        await ctx.send(f"```\n{message}\n```")
+        await interaction.response.send_message(f"```\n{message}\n```", ephemeral=True)
 
-    @commands.hybrid_command(
-        name="unmountcog",
-        help="Disables/unloads a cog and reloads all other cogs. Usage: /unmountcog <cog_name>"
+    @cogctl_group.command(
+        name="unload",
+        description="Disables/unloads a cog and reloads all other cogs."
     )
-    @commands.is_owner()
-    async def unmountcog(self, ctx, cog: str):
+    @app_commands.describe(cog="Name of the cog to unload (e.g., fun, ai, cogs.ai).")
+    @app_commands.check(owner_check_predicate)
+    async def cogctl_unload(self, interaction: discord.Interaction, cog: str):
+        await interaction.response.defer(ephemeral=True)
         output_lines = []
         # If needed, prepend "cogs." to the cog name
         extension = cog if cog.startswith("cogs.") else f"cogs.{cog}"
-        output_lines.append(f"Attempting to unmount cog: {extension}")
+        output_lines.append(f"Attempting to unload cog: {extension}")
 
         # Check if the extension is loaded.
         if extension not in self.bot.extensions:
-            await ctx.send(f"Cog `{extension}` is not currently loaded.")
+            await interaction.followup.send(f"Cog `{extension}` is not currently loaded.")
             return
 
         try:
-            self.bot.unload_extension(extension)
-            output_lines.append(f"Successfully unmounted `{extension}`.")
+            await self.bot.unload_extension(extension)
+            output_lines.append(f"Successfully unloaded `{extension}`.")
         except Exception as e:
-            output_lines.append(f"Failed to unmount `{extension}`: {e}")
-            await ctx.send(f"```\n" + "\n".join(output_lines) + "\n```")
+            output_lines.append(f"Failed to unload `{extension}`: {e}")
+            await interaction.followup.send(f"```\n" + "\n".join(output_lines) + "\n```")
             return
 
         # Reload all remaining loaded cogs
         output_lines.append("Reloading remaining cogs:")
-        for ext in list(self.bot.extensions.keys()):
+        for ext_name in list(self.bot.extensions.keys()): # Use a different var name to avoid conflict
             try:
-                self.bot.reload_extension(ext)
-                output_lines.append(f"Reloaded: {ext}")
+                await self.bot.reload_extension(ext_name)
+                output_lines.append(f"Reloaded: {ext_name}")
             except Exception as e:
-                output_lines.append(f"Failed to reload {ext}: {e}")
+                output_lines.append(f"Failed to reload {ext_name}: {e}")
 
         output_lines.append("Currently loaded cogs:")
         output_lines.append(self.format_loaded_cogs())
 
-        await ctx.send(f"```\n" + "\n".join(output_lines) + "\n```")
+        await interaction.followup.send(f"```\n" + "\n".join(output_lines) + "\n```")
 
-    @commands.hybrid_command(
-        name="mountcog",
-        help="Enables/loads a disabled cog and reloads all cogs. Usage: /mountcog <cog_name>"
+    @cogctl_group.command(
+        name="load",
+        description="Enables/loads a disabled cog and reloads all cogs."
     )
-    @commands.is_owner()
-    async def mountcog(self, ctx, cog: str):
+    @app_commands.describe(cog="Name of the cog to load (e.g., fun, ai, cogs.ai).")
+    @app_commands.check(owner_check_predicate)
+    async def cogctl_load(self, interaction: discord.Interaction, cog: str):
+        await interaction.response.defer(ephemeral=True)
         output_lines = []
         extension = cog if cog.startswith("cogs.") else f"cogs.{cog}"
-        output_lines.append(f"Attempting to mount cog: {extension}")
+        output_lines.append(f"Attempting to load cog: {extension}")
 
         if extension in self.bot.extensions:
-            await ctx.send(f"Cog `{extension}` is already loaded.")
+            await interaction.followup.send(f"Cog `{extension}` is already loaded.")
             return
 
         try:
-            self.bot.load_extension(extension)
-            output_lines.append(f"Successfully mounted `{extension}`.")
+            await self.bot.load_extension(extension)
+            output_lines.append(f"Successfully loaded `{extension}`.")
         except Exception as e:
-            output_lines.append(f"Failed to mount `{extension}`: {e}")
-            await ctx.send(f"```\n" + "\n".join(output_lines) + "\n```")
+            output_lines.append(f"Failed to load `{extension}`: {e}")
+            await interaction.followup.send(f"```\n" + "\n".join(output_lines) + "\n```")
             return
 
         # Reload all currently loaded cogs
         output_lines.append("Reloading all cogs:")
-        for ext in list(self.bot.extensions.keys()):
+        for ext_name in list(self.bot.extensions.keys()): # Use a different var name
             try:
-                self.bot.reload_extension(ext)
-                output_lines.append(f"Reloaded: {ext}")
+                await self.bot.reload_extension(ext_name)
+                output_lines.append(f"Reloaded: {ext_name}")
             except Exception as e:
-                output_lines.append(f"Failed to reload {ext}: {e}")
+                output_lines.append(f"Failed to reload {ext_name}: {e}")
 
         output_lines.append("Currently loaded cogs:")
         output_lines.append(self.format_loaded_cogs())
 
-        await ctx.send(f"```\n" + "\n".join(output_lines) + "\n```")
+        await interaction.followup.send(f"```\n" + "\n".join(output_lines) + "\n```")
 
 async def setup(bot):
     await bot.add_cog(CogManagerCog(bot))

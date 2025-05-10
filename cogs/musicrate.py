@@ -20,15 +20,30 @@ if not OPENROUTER_API_KEY:
 
 genius = lyricsgenius.Genius(GENIUS_API_KEY)
 
+# Attempt to import the music_group from the Music cog
+try:
+    from .music import Music
+    # This assumes Music cog in cogs/music.py has music_group as a class attribute
+    # If Music.music_group is not found, this cog might not load or commands won't register to the group.
+except ImportError:
+    # Fallback if Music cog or its group cannot be imported directly
+    # This would mean musicrate remains a top-level command or needs a different grouping strategy.
+    print("Could not import Music.music_group from cogs.music. MusicRateCog commands may not be grouped as intended.")
+    # Define a placeholder group if import fails, so the command decorator doesn't error out immediately,
+    # though it won't be the shared group. This is mostly for graceful degradation during development.
+    class Music: # Placeholder
+        music_group = app_commands.Group(name="musicfallback_rate", description="Fallback music rating commands")
+
+
 class MusicRateCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(
-        name="musicrate",
+    @Music.music_group.command( # Attaching to the imported group
+        name="rate", # Changed name to be a subcommand
         description="Fetches song lyrics and uses AI to rate them."
     )
-    async def musicrate(self, interaction: discord.Interaction, song: str, artist: str = None):
+    async def music_rate_command(self, interaction: discord.Interaction, song: str, artist: str = None): # Renamed method
         await interaction.response.defer()
         try:
             lyrics = await self.search_lyrics(song, artist)

@@ -185,38 +185,42 @@ class ModerationCog(commands.Cog):
         await self.session.close()
         print("ModerationCog Unloaded, session closed.")
 
-    # --- Moderation Configuration Command Group ---
-    modset_group = app_commands.Group(name="modset", description="Configure moderation settings (admin only).")
+    # --- AI Moderation Command Group ---
+    aimod_group = app_commands.Group(name="aimod", description="AI Moderation commands.")
+    config_subgroup = app_commands.Group(name="config", description="Configure AI moderation settings.", parent=aimod_group)
+    infractions_subgroup = app_commands.Group(name="infractions", description="Manage user infractions.", parent=aimod_group)
+    model_subgroup = app_commands.Group(name="model", description="Manage the AI model for moderation.", parent=aimod_group)
+    debug_subgroup = app_commands.Group(name="debug", description="Debugging commands for AI moderation.", parent=aimod_group)
 
-    @modset_group.command(name="log_channel", description="Set the moderation log channel.")
+    @config_subgroup.command(name="log_channel", description="Set the moderation log channel.")
     @app_commands.describe(channel="The text channel to use for moderation logs.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         set_guild_config(interaction.guild.id, "MOD_LOG_CHANNEL_ID", channel.id)
         await interaction.response.send_message(f"Moderation log channel set to {channel.mention}.", ephemeral=False)
 
-    @modset_group.command(name="suggestions_channel", description="Set the suggestions channel.")
+    @config_subgroup.command(name="suggestions_channel", description="Set the suggestions channel.")
     @app_commands.describe(channel="The text channel to use for suggestions.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_suggestions_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         set_guild_config(interaction.guild.id, "SUGGESTIONS_CHANNEL_ID", channel.id)
         await interaction.response.send_message(f"Suggestions channel set to {channel.mention}.", ephemeral=False)
 
-    @modset_group.command(name="moderator_role", description="Set the moderator role.")
+    @config_subgroup.command(name="moderator_role", description="Set the moderator role.")
     @app_commands.describe(role="The role that identifies moderators.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_moderator_role(self, interaction: discord.Interaction, role: discord.Role):
         set_guild_config(interaction.guild.id, "MODERATOR_ROLE_ID", role.id)
         await interaction.response.send_message(f"Moderator role set to {role.mention}.", ephemeral=False)
 
-    @modset_group.command(name="suicidal_ping_role", description="Set the role to ping for suicidal content.")
+    @config_subgroup.command(name="suicidal_ping_role", description="Set the role to ping for suicidal content.")
     @app_commands.describe(role="The role to ping for urgent suicidal content alerts.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_suicidal_ping_role(self, interaction: discord.Interaction, role: discord.Role):
         set_guild_config(interaction.guild.id, "SUICIDAL_PING_ROLE_ID", role.id)
         await interaction.response.send_message(f"Suicidal content ping role set to {role.mention}.", ephemeral=False)
 
-    @modset_group.command(name="add_nsfw_channel", description="Add a channel to the list of NSFW channels.")
+    @config_subgroup.command(name="add_nsfw_channel", description="Add a channel to the list of NSFW channels.")
     @app_commands.describe(channel="The text channel to mark as NSFW for the bot.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_add_nsfw_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -229,7 +233,7 @@ class ModerationCog(commands.Cog):
         else:
             await interaction.response.send_message(f"{channel.mention} is already in the NSFW channels list.", ephemeral=True)
 
-    @modset_group.command(name="remove_nsfw_channel", description="Remove a channel from the list of NSFW channels.")
+    @config_subgroup.command(name="remove_nsfw_channel", description="Remove a channel from the list of NSFW channels.")
     @app_commands.describe(channel="The text channel to remove from the NSFW list.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_remove_nsfw_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -242,7 +246,7 @@ class ModerationCog(commands.Cog):
         else:
             await interaction.response.send_message(f"{channel.mention} is not in the NSFW channels list.", ephemeral=True)
 
-    @modset_group.command(name="list_nsfw_channels", description="List currently configured NSFW channels.")
+    @config_subgroup.command(name="list_nsfw_channels", description="List currently configured NSFW channels.")
     @app_commands.checks.has_permissions(administrator=True)
     async def modset_list_nsfw_channels(self, interaction: discord.Interaction):
         guild_id = interaction.guild.id
@@ -266,7 +270,7 @@ class ModerationCog(commands.Cog):
     # as they were not part of the original "modset" generic command structure.
     # If these also need to be grouped, that would be a separate consideration.
 
-    @app_commands.command(name="modenable", description="Enable or disable moderation for this guild (admin only).")
+    @config_subgroup.command(name="enable", description="Enable or disable moderation for this guild (admin only).")
     @app_commands.describe(enabled="Enable moderation (true/false)")
     async def modenable(self, interaction: discord.Interaction, enabled: bool):
         if not interaction.user.guild_permissions.administrator:
@@ -275,7 +279,7 @@ class ModerationCog(commands.Cog):
         set_guild_config(interaction.guild.id, "ENABLED", enabled)
         await interaction.response.send_message(f"Moderation is now {'enabled' if enabled else 'disabled'} for this guild.", ephemeral=False)
 
-    @app_commands.command(name="viewinfractions", description="View a user's AI moderation infraction history (mod/admin only).")
+    @infractions_subgroup.command(name="view", description="View a user's AI moderation infraction history (mod/admin only).")
     @app_commands.describe(user="The user to view infractions for")
     async def viewinfractions(self, interaction: discord.Interaction, user: discord.Member):
         # Check if user has permission (admin or moderator role)
@@ -325,7 +329,7 @@ class ModerationCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @app_commands.command(name="clearinfractions", description="Clear a user's AI moderation infraction history (admin only).")
+    @infractions_subgroup.command(name="clear", description="Clear a user's AI moderation infraction history (admin only).")
     @app_commands.describe(user="The user to clear infractions for")
     async def clearinfractions(self, interaction: discord.Interaction, user: discord.Member):
         # Check if user has administrator permission
@@ -347,7 +351,7 @@ class ModerationCog(commands.Cog):
 
         await interaction.response.send_message(f"Cleared {len(infractions)} infraction(s) for {user.mention}.", ephemeral=False)
 
-    @app_commands.command(name="modsetmodel", description="Change the AI model used for moderation (admin only).")
+    @model_subgroup.command(name="set", description="Change the AI model used for moderation (admin only).")
     @app_commands.describe(model="The OpenRouter model to use (e.g., 'google/gemini-2.5-flash-preview', 'anthropic/claude-3-opus-20240229')")
     async def modsetmodel(self, interaction: discord.Interaction, model: str):
         # Check if user has administrator permission
@@ -394,7 +398,7 @@ class ModerationCog(commands.Cog):
         print(f"[DEBUG] modsetmodel_autocomplete returning {len(choices_to_return)} choices: {choices_to_return[:5]}")
         return choices_to_return
 
-    @app_commands.command(name="modgetmodel", description="View the current AI model used for moderation.")
+    @model_subgroup.command(name="get", description="View the current AI model used for moderation.")
     async def modgetmodel(self, interaction: discord.Interaction):
         # Get the model from guild config, fall back to global default
         guild_id = interaction.guild.id
@@ -1034,7 +1038,7 @@ Follow the JSON output format specified in the system prompt.
             # AI found no violation
             print(f"AI analysis complete for message {message.id}. No violation detected.")
 
-    @app_commands.command(name="aidebug_last_decisions", description="View the last 5 AI moderation decisions (admin only).")
+    @debug_subgroup.command(name="last_decisions", description="View the last 5 AI moderation decisions (admin only).")
     @app_commands.checks.has_permissions(administrator=True)
     async def aidebug_last_decisions(self, interaction: discord.Interaction):
         if not self.last_ai_decisions:

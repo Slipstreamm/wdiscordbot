@@ -6,6 +6,15 @@ import aiohttp # type: ignore
 import asyncio
 import random # Added for emoji reactions
 import re
+from functools import partial # For asyncio.to_thread with args
+try:
+    from transformers import pipeline as hf_pipeline # type: ignore
+    from transformers import AutoTokenizer # type: ignore
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    hf_pipeline = None
+    AutoTokenizer = None
 import urllib.parse
 import subprocess
 from datetime import datetime, timedelta
@@ -41,6 +50,32 @@ class AICog(commands.Cog):
         self.dynamic_learning_file_path = os.getenv("BOT_DYNAMIC_LEARNING_PATH", DEFAULT_DYNAMIC_LEARNING_PATH)
         self.load_dynamic_learning() # Load dynamic learning examples
         # --------------------
+
+        # --- Local Reaction LLM Setup ---
+        self.reaction_pipeline = None
+        self.reaction_tokenizer = None
+        self.reaction_model_name = "google/gemma-2b-it" # Using gemma-2b-it as discussed
+        if TRANSFORMERS_AVAILABLE and hf_pipeline and AutoTokenizer:
+            try:
+                print(f"Attempting to load local reaction model: {self.reaction_model_name}")
+                # device=-1 for CPU, device=0 for GPU 0, etc.
+                # Forcing CPU as per discussion, though GPU would be faster if available.
+                self.reaction_pipeline = hf_pipeline(
+                    "text-generation",
+                    model=self.reaction_model_name,
+                    tokenizer=self.reaction_model_name, # Explicitly pass tokenizer
+                    device=-1, # Use -1 for CPU
+                    torch_dtype="auto" # Or torch.float16 if memory is an issue and CPU supports it well
+                )
+                self.reaction_tokenizer = AutoTokenizer.from_pretrained(self.reaction_model_name)
+                print(f"Successfully loaded local reaction model '{self.reaction_model_name}' on CPU.")
+            except Exception as e:
+                print(f"!!! WARNING: Failed to load local reaction model '{self.reaction_model_name}'. Local LLM reactions will be disabled. Error: {e} !!!")
+                self.reaction_pipeline = None
+                self.reaction_tokenizer = None
+        else:
+            print("!!! WARNING: 'transformers' library not found. Local LLM reactions will be disabled. !!!")
+        # -----------------------------
 
         # Default configuration
         self.default_config = {
@@ -135,6 +170,8 @@ class AICog(commands.Cog):
             }
         ]
         # ------------------------
+
+    aimanage = app_commands.Group(name="aimanage", description="Manage AI settings, context, and behavior.")
 
     # --- Memory Management ---
     def load_memory(self):
@@ -625,6 +662,143 @@ class AICog(commands.Cog):
                 print(f"Error in generate_response loop: {e}")
                 return f"Oopsie! A little glitch happened while I was processing that ({type(e).__name__}). Can you try asking again? ✨"
 
+    # --- Local LLM Reaction Helper ---
+    async def get_local_reaction_emoji_suggestion(self, message_content: str) -> str:
+        """
+        Uses a local Hugging Face model to suggest a single emoji reaction.
+        Returns the emoji string or an empty string if no specific suggestion or error.
+        """
+        if not self.reaction_pipeline or not self.reaction_tokenizer:
+            print("Local reaction pipeline not available.")
+            return ""
+
+        system_prompt = (
+            "You are an AI assistant helping Kasane Teto, a cheerful and energetic UTAUloid character who loves French bread, "
+            "choose a single appropriate emoji reaction for a Discord message. "
+            "A decision has already been made that Teto *will* react. "
+            "Your task is to analyze the user's message and determine THE ONE most relevant Unicode emoji "
+            "that fits Teto's personality and the context of the message. "
+            "You MUST output your decision as a JSON object containing only a single emoji string: "
+            "{\"emoji\": \"<emoji_string>\"} "
+            "If you cannot determine any single suitable emoji for the given message, or if no emoji seems appropriate "
+            "despite the decision to react, return an empty string for the emoji: {\"emoji\": \"\"}. "
+            "Only use standard Unicode emojis."
+        )
+
+        # Gemma instruct model templating
+        # Note: The exact templating might need adjustment based on how hf_pipeline handles it.
+        # For direct model calls, it's often <start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model\n
+        # The pipeline might abstract some of this.
+        # We'll construct a prompt that the text-generation pipeline can understand.
+        # The pipeline usually expects a string or a list of chat messages.
+        # Let's try the chat message format if the pipeline supports it well for Gemma.
+        
+        chat_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message_content}
+        ]
+        
+        # The pipeline might not directly support system prompts in the same way as API calls.
+        # We might need to format it as a single string prompt for basic text-generation.
+        # Let's try formatting it as a single prompt string first for simplicity with the pipeline.
+        # This is a common way to use instruct models with the text-generation pipeline.
+        
+        # Constructing the prompt string for Gemma instruct models
+        # The tokenizer's apply_chat_template method is the most robust way if available and correctly configured.
+        try:
+            prompt_for_llm = self.reaction_tokenizer.apply_chat_template(
+                chat_messages, 
+                tokenize=False, 
+                add_generation_prompt=True # Important for instruct models
+            )
+        except Exception as e:
+            # Fallback if apply_chat_template is problematic or not configured for the model in the pipeline
+            print(f"Warning: Tokenizer apply_chat_template failed ({e}). Using manual prompt string construction.")
+            prompt_for_llm = f"<start_of_turn>user\n{system_prompt}\n\nUser message: \"{message_content}\"\nOutput JSON:<end_of_turn>\n<start_of_turn>model\n"
+
+
+        try:
+            # Run the blocking Hugging Face pipeline call in a separate thread
+            # `max_new_tokens` is crucial to limit output length and prevent overly long/slow generation.
+            # `num_return_sequences=1` ensures we only get one output.
+            # `do_sample=True/False`, `temperature`, `top_p` can be tuned if needed, but defaults might be fine.
+            
+            # Using functools.partial to pass arguments to the target function in to_thread
+            pipeline_callable = partial(
+                self.reaction_pipeline, 
+                prompt_for_llm, 
+                max_new_tokens=30, # Generous for {"emoji": "X"}
+                num_return_sequences=1,
+                pad_token_id=self.reaction_tokenizer.eos_token_id # Suppress warning
+            )
+            
+            # Timeout for the LLM call to prevent indefinite blocking
+            llm_results = await asyncio.wait_for(
+                asyncio.to_thread(pipeline_callable),
+                timeout=10.0  # 10 seconds timeout for the local LLM
+            )
+
+            if llm_results and isinstance(llm_results, list) and llm_results[0].get("generated_text"):
+                # The pipeline often returns the full prompt + generation. We need to extract just the generated part.
+                full_text = llm_results[0]["generated_text"]
+                # Extract only the part generated by the model
+                # This logic depends on how the pipeline returns the text and if it includes the prompt.
+                # For Gemma, the response starts after the <start_of_turn>model\n sequence.
+                model_response_start_tag = "<start_of_turn>model\n" # Or similar based on actual output
+                
+                # A more robust way if apply_chat_template was used for prompt construction:
+                # The generated text is usually appended directly.
+                # If the prompt was included in `full_text`, we need to strip it.
+                # This is a common challenge with pipelines.
+                # Let's assume for now the pipeline returns *only* the newly generated text,
+                # or that the `apply_chat_template` and pipeline settings handle this.
+                # If `full_text` includes the prompt, we need to find where the actual model output begins.
+                
+                # A common pattern is that the generated text is what comes *after* the input prompt.
+                # If `prompt_for_llm` was the input, then `full_text[len(prompt_for_llm):]` would be the generation.
+                # However, pipelines sometimes re-format.
+                # Let's try to find the JSON directly.
+                
+                generated_part = full_text
+                if full_text.startswith(prompt_for_llm): # If prompt is prepended
+                    generated_part = full_text[len(prompt_for_llm):]
+                
+                # More robust: find the JSON structure
+                match = re.search(r'\{.*\}', generated_part)
+                if match:
+                    json_string = match.group(0)
+                    try:
+                        data = json.loads(json_string)
+                        suggested_emoji = data.get("emoji", "")
+                        if isinstance(suggested_emoji, str): # Ensure it's a string
+                             print(f"Local LLM suggested emoji: '{suggested_emoji}' for: '{message_content[:30]}...'")
+                             return suggested_emoji.strip()
+                        else:
+                             print(f"Local LLM returned non-string emoji: {suggested_emoji}")
+                             return ""
+                    except json.JSONDecodeError as e:
+                        print(f"Error decoding JSON from local LLM: {e}. Output: '{json_string}'")
+                        return ""
+                    except Exception as e:
+                        print(f"Error processing local LLM JSON: {e}. Output: '{json_string}'")
+                        return ""
+                else:
+                    print(f"No JSON object found in local LLM output: '{generated_part}'")
+                    return ""
+            else:
+                print(f"Local LLM returned no valid result or unexpected format: {llm_results}")
+                return ""
+
+        except asyncio.TimeoutError:
+            print(f"Local LLM reaction suggestion timed out for: '{message_content[:30]}...'")
+            return ""
+        except Exception as e:
+            print(f"Error during local LLM reaction suggestion: {e}")
+            # import traceback
+            # traceback.print_exc() # For more detailed debugging if needed
+            return ""
+    # ---------------------------------
+
     # --- is_safe_command, run_shell_command, timeout_user, search_internet methods remain the same ---
     # (Make sure SERPAPI_KEY is set in your environment for search to work)
     def is_safe_command(self, command: str) -> bool:
@@ -838,7 +1012,7 @@ class AICog(commands.Cog):
             print(f"Error in slash_ai: {e}")
             await interaction.followup.send(f"A critical error occurred processing that request. Please tell my developer! Error: {type(e).__name__}")
 
-    @app_commands.command(name="aiconfig", description="Configure AI settings (Admin Only)")
+    @aimanage.command(name="config", description="Configure AI settings (Admin Only)")
     @app_commands.describe( # Descriptions updated slightly
         model="Together AI model identifier (e.g., 'mistralai/Mixtral-8x7B-Instruct-v0.1')",
         temperature="AI creativity/randomness (0.0-2.0).",
@@ -876,7 +1050,7 @@ class AICog(commands.Cog):
         config_message = (f"Okay~! {interaction.user.mention} updated your AI config:\n" + "\n".join([f"- {k.replace('_',' ').title()}: `{v}`" for k, v in config.items()]) + "\n\nChanges:\n- " + "\n- ".join(changes))
         await interaction.followup.send(config_message) # Sends publicly
 
-    @app_commands.command(name="context", description="Add a piece of context for the AI (Admin Only)")
+    @aimanage.command(name="addcontext", description="Add a piece of context for the AI (Admin Only)")
     @app_commands.describe(text="The context snippet to add.")
     async def slash_context(self, interaction: discord.Interaction, text: str):
         """Adds a text snippet to the global manual context list for the AI."""
@@ -889,7 +1063,7 @@ class AICog(commands.Cog):
         else:
             await interaction.followup.send("Hmm, I couldn't add that context. Maybe it was empty or already exists?", ephemeral=True)
 
-    @app_commands.command(name="addlearning", description="Add a dynamic learning example for the AI (Admin Only)")
+    @aimanage.command(name="addexample", description="Add a dynamic learning example for the AI (Admin Only)")
     @app_commands.describe(text="The learning example text to add.")
     async def slash_addlearning(self, interaction: discord.Interaction, text: str):
         """Adds a text snippet to the global dynamic learning list for the AI."""
@@ -902,7 +1076,7 @@ class AICog(commands.Cog):
         else:
             await interaction.followup.send("Hmm, I couldn't add that learning example. Maybe it was empty or already exists?", ephemeral=True)
 
-    @app_commands.command(name="aichannel", description="Toggle Teto responding to *all* messages here (Admin Only)")
+    @aimanage.command(name="channel", description="Toggle Teto responding to *all* messages here (Admin Only)")
     async def slash_aichannel(self, interaction: discord.Interaction):
         # (Implementation remains the same)
         await interaction.response.defer()
@@ -959,35 +1133,48 @@ class AICog(commands.Cog):
                     # Maybe add a cooldown to sending error messages in chat
                     # await message.channel.send("Oops, Teto brain freeze! 🧠❄️ Try again?")
         elif not should_respond and self.api_key: # Only react if not already replying
-             # --- Occasional Emoji Reaction ---
-             # Add a small chance (e.g., 5%) to react with an emoji
-             reaction_chance = 0.05 # 5% chance
-             if random.random() < reaction_chance:
-                 # List of potential emojis Teto might use
-                 teto_emojis = ['🍞', '🥖', '✨', '💖', '🎤', '🎶', '😊', '😄', '😉', '😋', '🎉', '👍', '<:teto_smile:123456789>', '<:teto_wink:123456789>'] # Add custom emoji IDs if available
-                 # Filter out custom emojis the bot might not have access to
-                 valid_emojis = []
-                 for emoji in teto_emojis:
-                     if isinstance(emoji, str) and emoji: # Standard unicode emoji
-                         valid_emojis.append(emoji)
-                     # else: # Could add check for custom emoji availability if needed
-                     #    try:
-                     #        # Attempt to fetch the custom emoji - might be slow/rate-limited
-                     #        fetched_emoji = await self.bot.fetch_emoji(int(emoji.split(':')[-1][:-1]))
-                     #        if fetched_emoji:
-                     #             valid_emojis.append(fetched_emoji)
-                     #    except (discord.NotFound, ValueError, AttributeError):
-                     #        pass # Ignore invalid custom emoji strings
+            reaction_chance = 0.05 # 5% chance to initiate reaction process
+            
+            if random.random() < reaction_chance:
+                chosen_emoji_to_react = ""
 
-                 if valid_emojis:
-                     try:
-                         chosen_emoji = random.choice(valid_emojis)
-                         await message.add_reaction(chosen_emoji)
-                     except discord.Forbidden:
-                         pass # Ignore if missing reaction permissions
-                     except discord.HTTPException as e:
-                         print(f"Failed to add reaction: {e}") # Log other HTTP errors
-             # ---------------------------------
+                # Try to get emoji from local LLM
+                if self.reaction_pipeline:
+                    suggested_emoji_from_llm = await self.get_local_reaction_emoji_suggestion(prompt) # Use original prompt
+                    if suggested_emoji_from_llm: # If LLM provided a specific emoji
+                        chosen_emoji_to_react = suggested_emoji_from_llm
+                
+                # Fallback if LLM didn't provide an emoji (or LLM not available)
+                if not chosen_emoji_to_react:
+                    teto_emojis = ['🍞', '🥖', '✨', '💖', '🎤', '🎶', '😊', '😄', '😉', '😋', '🎉', '👍'] # Removed custom for simplicity now
+                    # Add custom emojis if they are verified to be accessible by the bot
+                    # Example: custom_emoji_id = 123456789012345678
+                    # if self.bot.get_emoji(custom_emoji_id):
+                    # teto_emojis.append(str(self.bot.get_emoji(custom_emoji_id)))
+                    
+                    # Filter out custom emojis the bot might not have access to (if any were added as strings)
+                    valid_emojis = []
+                    for emoji_str in teto_emojis:
+                        if isinstance(emoji_str, str) and emoji_str: # Standard unicode emoji
+                            valid_emojis.append(emoji_str)
+                        # else: # Could add check for custom emoji availability if needed (complex for this spot)
+                        #    pass
+                    if valid_emojis:
+                        chosen_emoji_to_react = random.choice(valid_emojis)
+
+                # Add the chosen reaction if one was determined
+                if chosen_emoji_to_react:
+                    try:
+                        await message.add_reaction(chosen_emoji_to_react)
+                    except discord.Forbidden:
+                        pass # Ignore if missing reaction permissions
+                    except discord.HTTPException as e:
+                        # Catch specific error for "Unknown Emoji"
+                        if e.code == 10014: # Discord API error code for Unknown Emoji
+                            print(f"Failed to add reaction: Unknown Emoji '{chosen_emoji_to_react}'. LLM might have hallucinated an invalid emoji.")
+                        else:
+                            print(f"Failed to add reaction '{chosen_emoji_to_react}': {e}") # Log other HTTP errors
+            # ---------------------------------
 
     # -------------------------
 
