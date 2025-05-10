@@ -4,8 +4,6 @@ from discord.ext import commands
 import random
 from typing import Optional
 
-# A sample shop inventory. The keys are item names (in lowercase) and the values are the cost.
-# When selling, we assume you get about half the price.
 SHOP_ITEMS = {
     "pen": 20,
     "notebook": 50,
@@ -21,7 +19,7 @@ SHOP_ITEMS = {
     "RARE Golden Teto Plusie": 20000,
 }
 
-# A simple in-memory economy store where each user starts with $100 and an empty inventory.
+
 economy = {}
 
 def get_account(user_id: int) -> dict:
