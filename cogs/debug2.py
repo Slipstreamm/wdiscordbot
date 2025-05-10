@@ -6,7 +6,7 @@ import subprocess
 from discord.ext import commands
 from discord import app_commands
 
-def is_command_safe(user_id: str, command: str, sudo_allowed: set) -> (bool, str):
+def is_command_safe(user_id: str, command: str, sudo_allowed: set) -> tuple[bool, str]:
     """
     Validates a shell command to ensure it is safe to execute.
     Returns a tuple (allowed: bool, reason: str).
@@ -50,8 +50,11 @@ class Admin(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="wl", description="Whitelist a user to allow them to execute shell commands. (Admin-only)")
-    async def wl(self, interaction: discord.Interaction, member: discord.Member):
+    debugshell_group = app_commands.Group(name="debugshell", description="Commands for administrative shell access and debugging.")
+
+    @debugshell_group.command(name="whitelist", description="Whitelist a user to execute shell commands. (Admin-only)")
+    @app_commands.describe(member="The member to whitelist.")
+    async def debugshell_whitelist(self, interaction: discord.Interaction, member: discord.Member):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
             return
@@ -60,8 +63,9 @@ class Admin(commands.Cog):
         print(log_msg)
         await interaction.response.send_message(f"User {member.mention} has been whitelisted.\n{log_msg}")
 
-    @app_commands.command(name="cmd", description="Execute a shell command. (Whitelisted users only; dangerous commands are restricted)")
-    async def cmd(self, interaction: discord.Interaction, command: str):
+    @debugshell_group.command(name="exec", description="Execute a shell command. (Whitelisted users only; dangerous commands restricted)")
+    @app_commands.describe(command="The shell command to execute.")
+    async def debugshell_exec(self, interaction: discord.Interaction, command: str):
         if interaction.user.id not in self.bot.whitelisted_users:
             await interaction.response.send_message("You are not whitelisted to run shell commands.", ephemeral=True)
             return
@@ -92,8 +96,9 @@ class Admin(commands.Cog):
         final_response = f"```\n{output}\n```\n{log_exe}\n{log_output}"
         await interaction.response.send_message(final_response)
 
-    @app_commands.command(name="debugcmd", description="Activates debug mode and enables package management & git commands. (Hidden command)")
-    async def debugcmd(self, interaction: discord.Interaction, service_code_input: str):
+    @debugshell_group.command(name="mode", description="Activates debug mode for shell commands. (Requires service code)")
+    @app_commands.describe(service_code_input="The service code to activate debug mode.")
+    async def debugshell_mode(self, interaction: discord.Interaction, service_code_input: str):
         if service_code_input == self.bot.service_code:
             self.bot.sudo_allowed_users.add(interaction.user.id)
             log_msg = f"[LOG] Debug mode activated for user {interaction.user} (ID: {interaction.user.id})."
@@ -107,8 +112,8 @@ class Admin(commands.Cog):
             print(log_msg)
             await interaction.response.send_message("Invalid service code.", ephemeral=True)
 
-    @app_commands.command(name="cmdout", description="Shows the last 20 lines of terminal output dynamically.")
-    async def cmdout(self, interaction: discord.Interaction):
+    @debugshell_group.command(name="output", description="Shows the last 20 lines of dmesg terminal output.")
+    async def debugshell_output(self, interaction: discord.Interaction):
         try:
             process = await asyncio.create_subprocess_exec(
                 "dmesg", "--user", "-T",

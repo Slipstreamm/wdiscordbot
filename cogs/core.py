@@ -24,7 +24,12 @@ class Core(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="sysinfo", description="Shows the hardware information of the server.")
+    system_group = app_commands.Group(name="system", description="System related commands.")
+    botcontrol_group = app_commands.Group(name="bot", description="Bot control and interaction commands.")
+    botinfo_group = app_commands.Group(name="botinfo", description="Information about the bot and support.")
+    botinfo_support_subgroup = app_commands.Group(name="support", description="Support contact information.", parent=botinfo_group)
+
+    @system_group.command(name="info", description="Shows the hardware information of the server.")
     async def sysinfo(self, interaction: discord.Interaction):
         # (The CPU, RAM, and other details are hard-coded here as an example.)
         embed = discord.Embed(title="Kasanes pc >.<", color=discord.Color.blue())
@@ -37,7 +42,7 @@ class Core(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="systemcheck", description="Shows detailed system and bot information.")
+    @system_group.command(name="check", description="Shows detailed system and bot information.")
     async def systemcheck(self, interaction: discord.Interaction):
         """Check the bot and system status."""
         # Defer the response to prevent interaction timeout
@@ -243,12 +248,12 @@ class Core(commands.Cog):
             print(f"Error getting motherboard info: {e}")
             return "Error retrieving motherboard info"
 
-    @app_commands.command(name="status", description="Sets the bot's status to the provided text.")
+    @botcontrol_group.command(name="status", description="Sets the bot's status to the provided text.")
     async def status(self, interaction: discord.Interaction, text: str):
         await self.bot.change_presence(activity=discord.Game(name=text))
         await interaction.response.send_message(f"Bot status updated to: **{text}**")
 
-    @app_commands.command(name="user", description="Changes the bot's nickname to the provided text.")
+    @botcontrol_group.command(name="nickname", description="Changes the bot's nickname to the provided text.")
     async def user(self, interaction: discord.Interaction, text: str):
         if interaction.guild is None:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
@@ -259,12 +264,12 @@ class Core(commands.Cog):
         except discord.Forbidden:
             await interaction.response.send_message("I don't have permission to change my nickname.", ephemeral=True)
 
-    @app_commands.command(name="say", description="Make the bot say something.")
+    @botcontrol_group.command(name="say", description="Make the bot say something.")
     async def say(self, interaction: discord.Interaction, message: str):
         await interaction.response.send_message(f"Message sent: {message}", ephemeral=True)
         await interaction.channel.send(message)
 
-    @app_commands.command(name="help", description="Lists all available commands")
+    @botinfo_group.command(name="help", description="Lists all available commands")
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Help Command",
@@ -300,7 +305,7 @@ class Core(commands.Cog):
             embed.add_field(name=name, value=desc, inline=False)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="credits", description="Displays the credits for the bot.")
+    @botinfo_group.command(name="credits", description="Displays the credits for the bot.")
     async def credits(self, interaction: discord.Interaction):
         # Try to get the current git commit hash
         try:
@@ -329,7 +334,7 @@ class Core(commands.Cog):
         embed.set_footer(text="Thank you for using the bot!")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="temps", description="Runs the 'sensors' command and sends its output to chat.")
+    @system_group.command(name="temps", description="Runs the 'sensors' command and sends its output to chat.")
     async def temps(self, interaction: discord.Interaction):
         """Executes the sensors command and returns the output."""
         try:
@@ -356,22 +361,17 @@ class Core(commands.Cog):
             # Send output wrapped in a code block for clarity.
             await interaction.response.send_message(f"```\n{output}\n```")
 
-    @app_commands.command(name="discordsupportinvite", description="Send a link to the Discord support server.")
+    @botinfo_support_subgroup.command(name="discord", description="Send a link to the Discord support server.")
     async def discordsupportinvite(self, interaction: discord.Interaction):
         await interaction.response.send_message("https://discord.gg/9CFwFRPNH4")
 
-    @app_commands.command(name="developersite", description="Sends a link to the developer's website.")
+    @botinfo_group.command(name="developer", description="Sends a link to the developer's website.")
     async def developersite(self, interaction: discord.Interaction):
         await interaction.response.send_message("https://discordbot.learnhelp.cc/")
 
-    @app_commands.command(name="supportserver", description="Sends a link to the support server.")
-    async def supportserver(self, interaction: discord.Interaction):
-        await interaction.response.send_message("https://discord.gg/9CFwFRPNH4")
-
-    @app_commands.command(name="contactsupport", description="support emails")
+    @botinfo_support_subgroup.command(name="email", description="Support email addresses.")
     async def contactsupport(self, interaction: discord.Interaction):
         await interaction.response.send_message("For general support, please email:help@learnhelp,cc\nFor security issues, please email:securityoffice@auditoffice.learnhelp.cc\nFor staff issues, please email:contact@admin.office.learnhelp.cc")
-
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Core(bot))

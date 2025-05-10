@@ -10,14 +10,17 @@ class Ping(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="ping", description="Responds with the bot's latency.")
-    async def ping(self, interaction: discord.Interaction):
+    ping_group = app_commands.Group(name="ping", description="Commands to check latency and ping hosts.")
+
+    @ping_group.command(name="bot", description="Responds with the bot's WebSocket latency.")
+    async def ping_bot(self, interaction: discord.Interaction):
         """Responds with the bot's latency."""
         latency = self.bot.latency * 1000  # Convert to milliseconds
         await interaction.response.send_message(f"Pong! Latency: {latency:.2f}ms")
 
-    @app_commands.command(name="icmp", description="Ping a remote ip/domain using ICMP")
-    async def icmp(self, interaction: discord.Interaction, host: str):
+    @ping_group.command(name="host", description="Ping a remote IP/domain using ICMP.")
+    @app_commands.describe(host="The IP address or domain name to ping.")
+    async def ping_host(self, interaction: discord.Interaction, host: str):
         """Ping a remote ip/domain using ICMP."""
 
         # Strict regex for IPv4, IPv6, and domain names

@@ -120,6 +120,8 @@ class Music(commands.Cog):
         # Store MusicPlayer instances per guild.
         self.players = {}
 
+    music_group = app_commands.Group(name="music", description="Music playback commands.")
+
     async def get_player(self, interaction: discord.Interaction) -> MusicPlayer:
         """Retrieve the MusicPlayer for the guild, creating one if necessary."""
         guild_id = interaction.guild.id
@@ -134,8 +136,8 @@ class Music(commands.Cog):
             self.players[guild_id] = player
         return player
 
-    @app_commands.command(name="join", description="Join your current voice channel.")
-    async def join(self, interaction: discord.Interaction):
+    @music_group.command(name="join", description="Join your current voice channel.")
+    async def join_command(self, interaction: discord.Interaction): # Renamed for clarity
         try:
             # If the bot is already connected, move it if necessary.
             if interaction.guild.voice_client:
@@ -157,8 +159,8 @@ class Music(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"Error joining voice channel: {e}", ephemeral=True)
 
-    @app_commands.command(name="play", description="Play a song from a URL or search query.")
-    async def play(self, interaction: discord.Interaction, query: str):
+    @music_group.command(name="play", description="Play a song from a URL or search query.")
+    async def play_command(self, interaction: discord.Interaction, query: str): # Renamed
         await interaction.response.defer()
         try:
             player = await self.get_player(interaction)
@@ -176,11 +178,11 @@ class Music(commands.Cog):
         # Add the song to the player's queue.
         await player.queue.put(source)
         player.queue_list.append(source)
-        position = player.queue.qsize()
+        position = player.queue.qsize() # qsize() is correct for asyncio.Queue
         await interaction.followup.send(f"Added **{source.title}** to the queue at position {position}.")
 
-    @app_commands.command(name="skip", description="Skip the currently playing song.")
-    async def skip(self, interaction: discord.Interaction):
+    @music_group.command(name="skip", description="Skip the currently playing song.")
+    async def skip_command(self, interaction: discord.Interaction): # Renamed
         try:
             player = await self.get_player(interaction)
         except Exception as e:
@@ -193,8 +195,8 @@ class Music(commands.Cog):
             player.skip()
             await interaction.response.send_message("Song skipped.")
 
-    @app_commands.command(name="pause", description="Pause the current playback.")
-    async def pause(self, interaction: discord.Interaction):
+    @music_group.command(name="pause", description="Pause the current playback.")
+    async def pause_command(self, interaction: discord.Interaction): # Renamed
         vc = interaction.guild.voice_client
         if not vc or not vc.is_playing():
             await interaction.response.send_message("Nothing is playing right now.", ephemeral=True)
@@ -202,8 +204,8 @@ class Music(commands.Cog):
         vc.pause()
         await interaction.response.send_message("Playback paused.")
 
-    @app_commands.command(name="resume", description="Resume the current playback.")
-    async def resume(self, interaction: discord.Interaction):
+    @music_group.command(name="resume", description="Resume the current playback.")
+    async def resume_command(self, interaction: discord.Interaction): # Renamed
         vc = interaction.guild.voice_client
         if not vc or not vc.is_paused():
             await interaction.response.send_message("Playback is not paused.", ephemeral=True)
@@ -211,8 +213,8 @@ class Music(commands.Cog):
         vc.resume()
         await interaction.response.send_message("Playback resumed.")
 
-    @app_commands.command(name="nowplaying", description="Show the currently playing song.")
-    async def nowplaying(self, interaction: discord.Interaction):
+    @music_group.command(name="nowplaying", description="Show the currently playing song.")
+    async def nowplaying_command(self, interaction: discord.Interaction): # Renamed
         try:
             player = await self.get_player(interaction)
         except Exception as e:
@@ -224,8 +226,8 @@ class Music(commands.Cog):
         else:
             await interaction.response.send_message(f"Now playing: **{player.current.title}**")
 
-    @app_commands.command(name="queue", description="Display the upcoming song queue.")
-    async def queue(self, interaction: discord.Interaction):
+    @music_group.command(name="queue", description="Display the upcoming song queue.")
+    async def queue_command(self, interaction: discord.Interaction): # Renamed
         try:
             player = await self.get_player(interaction)
         except Exception as e:
@@ -245,8 +247,8 @@ class Music(commands.Cog):
             )
             await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="volume", description="Change the playback volume (0-100).")
-    async def volume(self, interaction: discord.Interaction, percent: int):
+    @music_group.command(name="volume", description="Change the playback volume (0-100).")
+    async def volume_command(self, interaction: discord.Interaction, percent: int): # Renamed
         try:
             if percent < 0 or percent > 100:
                 await interaction.response.send_message("Volume must be between 0 and 100.", ephemeral=True)
@@ -262,8 +264,8 @@ class Music(commands.Cog):
             player.current.volume = player.volume
         await interaction.response.send_message(f"Volume set to {percent}%")
 
-    @app_commands.command(name="clear", description="Clear all songs from the queue.")
-    async def clear(self, interaction: discord.Interaction):
+    @music_group.command(name="clear", description="Clear all songs from the queue.")
+    async def clear_command(self, interaction: discord.Interaction): # Renamed
         try:
             player = await self.get_player(interaction)
         except Exception as e:
@@ -273,8 +275,8 @@ class Music(commands.Cog):
         player.queue_list.clear()
         await interaction.response.send_message("Queue cleared.")
 
-    @app_commands.command(name="remove", description="Remove a song from the queue by its position.")
-    async def remove(self, interaction: discord.Interaction, index: int):
+    @music_group.command(name="remove", description="Remove a song from the queue by its position.")
+    async def remove_command(self, interaction: discord.Interaction, index: int): # Renamed
         try:
             player = await self.get_player(interaction)
         except Exception as e:
@@ -289,8 +291,8 @@ class Music(commands.Cog):
         # For full removal functionality, you might maintain your own queue list.
         await interaction.response.send_message(f"Removed **{removed.title}** from the queue.")
 
-    @app_commands.command(name="leave", description="Clear the queue and disconnect the bot.")
-    async def leave(self, interaction: discord.Interaction):
+    @music_group.command(name="leave", description="Clear the queue and disconnect the bot.")
+    async def leave_command(self, interaction: discord.Interaction): # Renamed
         guild_id = interaction.guild.id
         player = self.players.get(guild_id)
         if player is None:
