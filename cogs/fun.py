@@ -306,6 +306,70 @@ async def moneyedit(interaction: discord.Interaction, user: discord.Member, amou
     )
     await interaction.response.send_message(embed=embed)
 
+class ConfirmView(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.value = None
+
+    @discord.ui.button(label="Yes", style=discord.ButtonStyle.green)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = True
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="No", style=discord.ButtonStyle.red)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = False
+        await interaction.response.defer()
+        self.stop()
+
+@app_commands.command(name="airstrike", description="Call in a tactical airstrike on a user.")
+@app_commands.describe(target="The user to call the airstrike on.")
+async def airstrike(interaction: discord.Interaction, target: discord.Member):
+    account = get_account(interaction.user.id)
+    if account["balance"] < 50000:
+        embed = discord.Embed(
+            title="Airstrike",
+            description="You don't have enough money to call in an airstrike! It costs $50,000.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
+
+    view = ConfirmView()
+    embed = discord.Embed(
+        title="Airstrike Confirmation",
+        description=f"Are you sure you want to call an airstrike on **{target.display_name}**? This will cost $50,000 and reset their balance to $100.",
+        color=discord.Color.orange()
+    )
+    await interaction.response.send_message(embed=embed, view=view)
+
+    await view.wait()
+    if view.value is None:
+        embed = discord.Embed(
+            title="Airstrike",
+            description="Airstrike cancelled due to timeout.",
+            color=discord.Color.gray()
+        )
+        await interaction.followup.send(embed=embed)
+    elif view.value:
+        account["balance"] -= 50000
+        target_account = get_account(target.id)
+        target_account["balance"] = 100
+        embed = discord.Embed(
+            title="Airstrike",
+            description=f"Airstrike called on **{target.display_name}**! Their balance has been reset to $100.",
+            color=discord.Color.green()
+        )
+        await interaction.followup.send(embed=embed)
+    else:
+        embed = discord.Embed(
+            title="Airstrike",
+            description="Airstrike cancelled.",
+            color=discord.Color.red()
+        )
+        await interaction.followup.send(embed=embed)
+
 # ------------------- Setup Function -------------------
 
 async def setup(bot: commands.Bot):
@@ -317,3 +381,4 @@ async def setup(bot: commands.Bot):
     bot.tree.add_command(gamble)
     bot.tree.add_command(invedit)
     bot.tree.add_command(moneyedit)
+    bot.tree.add_command(airstrike)
