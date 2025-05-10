@@ -16,7 +16,7 @@ SHOP_ITEMS = {
     "Asus Vivobook 14": 175,
     "Kasane Teto plushie": 50,
     "miku plushie": 50,
-    "RARE Golden Teto Plusie": 20000,
+    "RARE Golden Teto Plushie": 20000,
 }
 
 
