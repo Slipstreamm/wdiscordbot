@@ -1,10 +1,11 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import random
 from typing import Optional
 
-# A sample shop inventory. Here the keys are item names (in lowercase)
-# and the values are the cost. When selling, we assume you get about half the price.
+# A sample shop inventory. The keys are item names (in lowercase) and the values are the cost.
+# When selling, we assume you get about half the price.
 SHOP_ITEMS = {
     "pen": 20,
     "notebook": 50,
@@ -20,134 +21,299 @@ SHOP_ITEMS = {
     "RARE Golden Teto Plusie": 20000,
 }
 
-class Fun(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        # A simple in-memory economy store where each user starts with $100 and an empty inventory.
-        self.economy = {}  # {user_id: {"balance": int, "inventory": list}}
+# A simple in-memory economy store where each user starts with $100 and an empty inventory.
+economy = {}
 
-    def get_account(self, user_id: int) -> dict:
-        """Creates an account for the user if one does not exist and returns it."""
-        if user_id not in self.economy:
-            self.economy[user_id] = {"balance": 100, "inventory": []}
-        return self.economy[user_id]
+def get_account(user_id: int) -> dict:
+    """Creates an account for the user if one does not exist and returns it."""
+    if user_id not in economy:
+        economy[user_id] = {"balance": 100, "inventory": []}
+    return economy[user_id]
 
-    # Create a prefix command group called "fun"
-    fun_group = commands.Group(name="fun", help="Fun economy commands")
+# ------------------- User Commands -------------------
 
-    @fun_group.command(name="work", help="Work a job and earn money!")
-    async def work(self, ctx: commands.Context):
-        account = self.get_account(ctx.author.id)
-        earned = random.randint(50, 150)
-        job = random.choice(["barista", "cashier", "developer", "bartender", "freelancer"])
-        account["balance"] += earned
-        await ctx.send(
-            f"You worked as a {job} and earned ${earned}.\nYour new balance is ${account['balance']}."
+@app_commands.command(name="work", description="Work a job and earn money!")
+async def work(interaction: discord.Interaction):
+    account = get_account(interaction.user.id)
+    earned = random.randint(50, 150)
+    job = random.choice(["barista", "cashier", "developer", "bartender", "freelancer"])
+    account["balance"] += earned
+
+    embed = discord.Embed(
+        title="Work",
+        description=f"You worked as a **{job}** and earned **${earned}**.\nYour new balance is **${account['balance']}**.",
+        color=discord.Color.blue()
+    )
+    await interaction.response.send_message(embed=embed)
+
+@app_commands.command(name="sell", description="Sell an item from your inventory.")
+@app_commands.describe(item="The item you wish to sell.")
+async def sell(interaction: discord.Interaction, item: str):
+    account = get_account(interaction.user.id)
+    # Find the item in your inventory (ignoring case)
+    item_in_inventory = None
+    for inv_item in account["inventory"]:
+        if inv_item.lower() == item.lower():
+            item_in_inventory = inv_item
+            break
+
+    if not item_in_inventory:
+        embed = discord.Embed(
+            title="Sell",
+            description="You don't have that item in your inventory!",
+            color=discord.Color.red()
         )
+        await interaction.response.send_message(embed=embed)
+        return
 
-    @fun_group.command(name="sell", help="Sell an item from your inventory.")
-    async def sell(self, ctx: commands.Context, item: str):
-        account = self.get_account(ctx.author.id)
-        # Find the item in your inventory (ignoring case)
-        item_in_inventory = None
-        for inv_item in account["inventory"]:
-            if inv_item.lower() == item.lower():
-                item_in_inventory = inv_item
+    account["inventory"].remove(item_in_inventory)
+    # Use the shop price if known, otherwise default to $20; you get roughly half when selling.
+    sold_price = SHOP_ITEMS.get(item_in_inventory.lower(), 20) // 2
+    account["balance"] += sold_price
+
+    embed = discord.Embed(
+        title="Sell",
+        description=f"You sold your **{item_in_inventory}** for **${sold_price}**.\nYour new balance is **${account['balance']}**.",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed)
+
+@app_commands.command(name="steal", description="Attempt to steal money from another user!")
+@app_commands.describe(target="The member you want to steal from.")
+async def steal(interaction: discord.Interaction, target: discord.Member):
+    account = get_account(interaction.user.id)
+    thief = account
+    victim = get_account(target.id)
+
+    if target.id == interaction.user.id:
+        embed = discord.Embed(
+            title="Steal",
+            description="You can't steal from yourself!",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
+
+    if victim["balance"] < 50:
+        embed = discord.Embed(
+            title="Steal",
+            description=f"{target.display_name} doesn't have enough money to steal!",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
+
+    # Simulate theft with a 30% chance of success.
+    if random.random() < 0.3:
+        stolen = random.randint(10, min(100, victim["balance"] // 3))
+        victim["balance"] -= stolen
+        thief["balance"] += stolen
+        embed = discord.Embed(
+            title="Steal",
+            description=f"You successfully stole **${stolen}** from **{target.display_name}**!\nYour new balance is **${thief['balance']}**.",
+            color=discord.Color.green()
+        )
+    else:
+        fine = random.randint(5, 20)
+        thief["balance"] = max(0, thief["balance"] - fine)
+        embed = discord.Embed(
+            title="Steal",
+            description=f"You got caught trying to steal from **{target.display_name}**!\nYou were fined **${fine}**.\nYour new balance is **${thief['balance']}**.",
+            color=discord.Color.red()
+        )
+    await interaction.response.send_message(embed=embed)
+
+@app_commands.command(name="shop", description="View shop items or buy an item.")
+@app_commands.describe(item="The item you wish to buy (optional). Leave empty to view available items.")
+async def shop(interaction: discord.Interaction, item: Optional[str] = None):
+    account = get_account(interaction.user.id)
+    if item is None:
+        items_list = "\n".join([f"{name.title()} - ${price}" for name, price in SHOP_ITEMS.items()])
+        embed = discord.Embed(
+            title="Shop - Available Items",
+            description=items_list,
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text="To buy an item, use /shop <item>")
+        await interaction.response.send_message(embed=embed)
+    else:
+        item_key = item.lower()
+        if item_key not in [key.lower() for key in SHOP_ITEMS]:
+            embed = discord.Embed(
+                title="Shop",
+                description="That item is not available in the shop!",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+
+        # Find the actual key (preserving case) from the shop items.
+        for key in SHOP_ITEMS:
+            if key.lower() == item_key:
+                item_key = key
                 break
 
-        if not item_in_inventory:
-            await ctx.send("You don't have that item in your inventory!")
+        price = SHOP_ITEMS[item_key]
+        if account["balance"] < price:
+            embed = discord.Embed(
+                title="Shop",
+                description="You don't have enough money to buy that item!",
+                color=discord.Color.red()
+            )
+            await interaction.response.send_message(embed=embed)
             return
 
-        # Remove the item and determine its selling price.
-        account["inventory"].remove(item_in_inventory)
-        # Use the shop price if known, otherwise default to $20; you get roughly half when selling.
-        sold_price = SHOP_ITEMS.get(item_in_inventory.lower(), 20) // 2
-        account["balance"] += sold_price
-        await ctx.send(
-            f"You sold your {item_in_inventory} for ${sold_price}.\nYour new balance is ${account['balance']}."
+        account["balance"] -= price
+        account["inventory"].append(item_key.lower())
+        embed = discord.Embed(
+            title="Shop",
+            description=f"You bought a **{item_key.title()}** for **${price}**.\nYour new balance is **${account['balance']}**.",
+            color=discord.Color.green()
         )
+        await interaction.response.send_message(embed=embed)
 
-    @fun_group.command(name="steal", help="Attempt to steal money from another user!")
-    async def steal(self, ctx: commands.Context, target: discord.Member):
-        # Prevent stealing from oneself
-        if target.id == ctx.author.id:
-            await ctx.send("You can't steal from yourself!")
-            return
+@app_commands.command(name="gamble", description="Gamble a certain amount of money in a coin flip!")
+@app_commands.describe(amount="The amount of money you want to gamble.")
+async def gamble(interaction: discord.Interaction, amount: int):
+    account = get_account(interaction.user.id)
+    if amount <= 0:
+        embed = discord.Embed(
+            title="Gamble",
+            description="You must gamble a positive amount!",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
 
-        thief = self.get_account(ctx.author.id)
-        victim = self.get_account(target.id)
-        if victim["balance"] < 50:
-            await ctx.send(f"{target.display_name} doesn't have enough money to steal!")
-            return
+    if account["balance"] < amount:
+        embed = discord.Embed(
+            title="Gamble",
+            description="You don't have that much money!",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+        return
 
-        # Simulate theft with a 30% chance of success.
-        if random.random() < 0.3:
-            # On success: steal a random amount between $10 and up to one-third of the victim's balance (max $100).
-            stolen = random.randint(10, min(100, victim["balance"] // 3))
-            victim["balance"] -= stolen
-            thief["balance"] += stolen
-            await ctx.send(
-                f"You successfully stole ${stolen} from {target.display_name}!\nYour new balance is ${thief['balance']}."
+    if random.choice([True, False]):
+        account["balance"] += amount
+        embed = discord.Embed(
+            title="Gamble",
+            description=f"You won! You earned an extra **${amount}**.\nYour new balance is **${account['balance']}**.",
+            color=discord.Color.green()
+        )
+    else:
+        account["balance"] -= amount
+        embed = discord.Embed(
+            title="Gamble",
+            description=f"You lost the gamble and lost **${amount}**.\nYour new balance is **${account['balance']}**.",
+            color=discord.Color.red()
+        )
+    await interaction.response.send_message(embed=embed)
+
+# ------------------- Admin Commands -------------------
+
+@app_commands.command(name="invedit", description="Admin: Add or remove a shop item from a user's inventory.")
+@app_commands.describe(
+    user="The target user whose inventory you want to edit.",
+    item="The shop item to add or remove.",
+    action="Specify 'add' to add the item or 'take' to remove it."
+)
+async def invedit(interaction: discord.Interaction, user: discord.Member, item: str, action: str):
+    # Check if the command user has administrator permissions.
+    if not interaction.user.guild_permissions.administrator:
+        embed = discord.Embed(
+            title="Invedit",
+            description="You do not have permission to use this command.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    # Perform a case-insensitive lookup in the shop items.
+    shop_item_key = None
+    for key in SHOP_ITEMS:
+        if key.lower() == item.lower():
+            shop_item_key = key
+            break
+
+    if shop_item_key is None:
+        embed = discord.Embed(
+            title="Invedit",
+            description="This item does not exist in the shop.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    # Retrieve account for the target user.
+    account = get_account(user.id)
+    shop_item = shop_item_key.lower()  # use consistent lowercase in the inventory
+
+    if action.lower() == "add":
+        account["inventory"].append(shop_item)
+        embed = discord.Embed(
+            title="Invedit",
+            description=f"Added **{shop_item}** to **{user.display_name}**'s inventory.",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed)
+    elif action.lower() == "take":
+        if shop_item in account["inventory"]:
+            account["inventory"].remove(shop_item)
+            embed = discord.Embed(
+                title="Invedit",
+                description=f"Removed **{shop_item}** from **{user.display_name}**'s inventory.",
+                color=discord.Color.green()
             )
+            await interaction.response.send_message(embed=embed)
         else:
-            # On failure, the thief is fined a small amount.
-            fine = random.randint(5, 20)
-            thief["balance"] = max(0, thief["balance"] - fine)
-            await ctx.send(
-                f"You got caught trying to steal from {target.display_name}!\nYou were fined ${fine}.\nYour new balance is ${thief['balance']}."
+            embed = discord.Embed(
+                title="Invedit",
+                description=f"**{user.display_name}** does not have **{shop_item}** in their inventory.",
+                color=discord.Color.red()
             )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+    else:
+        embed = discord.Embed(
+            title="Invedit",
+            description="Invalid action. Use 'add' or 'take'.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @fun_group.command(name="shop", help="View shop items or buy an item.")
-    async def shop(self, ctx: commands.Context, item: Optional[str] = None):
-        account = self.get_account(ctx.author.id)
-        if item is None:
-            # List all available shop items.
-            items_list = "\n".join([f"{name.title()} - ${price}" for name, price in SHOP_ITEMS.items()])
-            response = f"**Available Items:**\n{items_list}\n\nTo buy an item, use `%fun shop <item>`."
-            await ctx.send(response)
-        else:
-            item_key = item.lower()
-            if item_key not in SHOP_ITEMS:
-                await ctx.send("That item is not available in the shop!")
-                return
-            price = SHOP_ITEMS[item_key]
-            if account["balance"] < price:
-                await ctx.send("You don't have enough money to buy that item!")
-                return
-            # Deduct the price and add the item to the user's inventory.
-            account["balance"] -= price
-            account["inventory"].append(item_key)
-            await ctx.send(
-                f"You bought a {item.title()} for ${price}.\nYour new balance is ${account['balance']}."
-            )
+@app_commands.command(name="moneyedit", description="Admin: Edit a user's balance.")
+@app_commands.describe(
+    user="The target user whose balance you want to modify.",
+    amount="The amount to add (or subtract if negative)."
+)
+async def moneyedit(interaction: discord.Interaction, user: discord.Member, amount: int):
+    # Check if the command user has administrator permissions.
+    if not interaction.user.guild_permissions.administrator:
+        embed = discord.Embed(
+            title="Moneyedit",
+            description="You do not have permission to use this command.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
 
-    @fun_group.command(name="gamble", help="Gamble a certain amount of money in a coin flip!")
-    async def gamble(self, ctx: commands.Context, amount: int):
-        if amount <= 0:
-            await ctx.send("You must gamble a positive amount!")
-            return
+    account = get_account(user.id)
+    account["balance"] += amount
+    embed = discord.Embed(
+        title="Moneyedit",
+        description=f"**{user.display_name}**'s new balance is **${account['balance']}**.",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed)
 
-        account = self.get_account(ctx.author.id)
-        if account["balance"] < amount:
-            await ctx.send("You don't have that much money!")
-            return
+# ------------------- Setup Function -------------------
 
-        # Simple coin flip: win doubles your bet, lose subtracts it.
-        if random.choice([True, False]):
-            account["balance"] += amount
-            await ctx.send(
-                f"You won! You earned an extra ${amount}.\nYour new balance is ${account['balance']}."
-            )
-        else:
-            account["balance"] -= amount
-            await ctx.send(
-                f"You lost the gamble and lost ${amount}.\nYour new balance is ${account['balance']}."
-            )
-
-# The setup function to add this cog and register the command group.
 async def setup(bot: commands.Bot):
-    cog = Fun(bot)
-    await bot.add_cog(cog)
-    # Register the entire /fun group to the bot's command tree.
-    # bot.tree.add_command(Fun.fun_group) # Removed slash command registration
+    # Register all commands to the bot's command tree.
+    bot.tree.add_command(work)
+    bot.tree.add_command(sell)
+    bot.tree.add_command(steal)
+    bot.tree.add_command(shop)
+    bot.tree.add_command(gamble)
+    bot.tree.add_command(invedit)
+    bot.tree.add_command(moneyedit)
