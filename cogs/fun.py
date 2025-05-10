@@ -62,6 +62,22 @@ async def sell(interaction: discord.Interaction, item: str):
         f"You sold your {item_in_inventory} for ${sold_price}.\nYour new balance is ${account['balance']}."
     )
 
+@sell.autocomplete("item")
+async def sell_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    account = get_account(interaction.user.id)
+    # Use set to get unique items from inventory, as duplicates might exist
+    # Items in inventory are stored with original casing from SHOP_ITEMS
+    inventory_items = list(set(account.get("inventory", []))) 
+    choices = [
+        app_commands.Choice(name=item_name.title(), value=item_name)
+        for item_name in inventory_items
+        if current.lower() in item_name.lower()
+    ]
+    return choices[:25] # Discord limits to 25 choices
+
 @app_commands.command(name="steal", description="Attempt to steal money from another user!")
 @app_commands.describe(target="The member you want to steal from.")
 async def steal(interaction: discord.Interaction, target: discord.Member):
@@ -103,25 +119,44 @@ async def shop(interaction: discord.Interaction, item: Optional[str] = None):
         response = f"**Available Items:**\n{items_list}\n\nTo buy an item, use `/shop <item>`."
         await interaction.response.send_message(response)
     else:
-        item_key = item.lower()
-        if item_key not in [key.lower() for key in SHOP_ITEMS]:
+        # 'item' will be the exact key from SHOP_ITEMS if selected from autocomplete
+        # If typed, we still need to find the correct key.
+        chosen_item_key = None
+        if item in SHOP_ITEMS: # Direct match (e.g., from autocomplete)
+            chosen_item_key = item
+        else: # Case-insensitive search for typed input
+            for key_in_shop in SHOP_ITEMS:
+                if key_in_shop.lower() == item.lower():
+                    chosen_item_key = key_in_shop
+                    break
+        
+        if not chosen_item_key:
             await interaction.response.send_message("That item is not available in the shop!")
             return
-        # Find the actual key (preserving case) from the shop items.
-        for key in SHOP_ITEMS:
-            if key.lower() == item_key:
-                item_key = key
-                break
-        price = SHOP_ITEMS[item_key]
+
+        price = SHOP_ITEMS[chosen_item_key]
         if account["balance"] < price:
             await interaction.response.send_message("You don't have enough money to buy that item!")
             return
-        # Deduct the price and add the item to the user's inventory (store in lowercase for consistency).
+        
         account["balance"] -= price
-        account["inventory"].append(item_key.lower())
+        account["inventory"].append(chosen_item_key)  # Store with original casing
         await interaction.response.send_message(
-            f"You bought a {item_key.title()} for ${price}.\nYour new balance is ${account['balance']}."
+            f"You bought a {chosen_item_key.title()} for ${price}.\nYour new balance is ${account['balance']}."
         )
+
+@shop.autocomplete("item")
+async def shop_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    choices = [
+        app_commands.Choice(name=item_name.title() + f" (${item_price})", value=item_name)
+        for item_name, item_price in SHOP_ITEMS.items()
+        if current.lower() in item_name.lower()
+    ]
+    # Discord limits to 25 choices
+    return choices[:25]
 
 @app_commands.command(name="gamble", description="Gamble a certain amount of money in a coin flip!")
 @app_commands.describe(amount="The amount of money you want to gamble.")
@@ -161,32 +196,76 @@ async def invedit(interaction: discord.Interaction, user: discord.Member, item: 
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return
 
-    # Perform a case-insensitive lookup in the shop items.
-    shop_item_key = None
-    for key in SHOP_ITEMS:
-        if key.lower() == item.lower():
-            shop_item_key = key
-            break
-
-    if shop_item_key is None:
+    # 'item' will be the exact key from SHOP_ITEMS if selected from autocomplete.
+    # If typed, we still need to find the correct key.
+    chosen_item_key = None
+    if item in SHOP_ITEMS: # Direct match (e.g., from autocomplete)
+        chosen_item_key = item
+    else: # Case-insensitive search for typed input
+        for key_in_shop in SHOP_ITEMS:
+            if key_in_shop.lower() == item.lower():
+                chosen_item_key = key_in_shop
+                break
+    
+    if not chosen_item_key:
         await interaction.response.send_message("This item does not exist in the shop.", ephemeral=True)
         return
 
-    # Retrieve account for the target user.
     account = get_account(user.id)
-    shop_item = shop_item_key.lower()  # use consistent lowercase in the inventory
+    # Use the original casing for adding/removing from inventory, consistent with how /shop adds items
+    item_to_modify = chosen_item_key 
 
     if action.lower() == "add":
-        account["inventory"].append(shop_item)
-        await interaction.response.send_message(f"Added {shop_item} to {user.display_name}'s inventory.")
+        account["inventory"].append(item_to_modify)
+        await interaction.response.send_message(f"Added {item_to_modify.title()} to {user.display_name}'s inventory.")
     elif action.lower() == "take":
-        if shop_item in account["inventory"]:
-            account["inventory"].remove(shop_item)
-            await interaction.response.send_message(f"Removed {shop_item} from {user.display_name}'s inventory.")
+        # When taking, we need to find the item in inventory.
+        # Inventory items are stored with original casing.
+        item_found_in_inventory = None
+        for inv_item in account["inventory"]:
+            # Compare with original casing first, then try lowercase if not found (though ideally all are cased)
+            if inv_item == item_to_modify:
+                 item_found_in_inventory = inv_item
+                 break
+        # Fallback to case-insensitive if direct match failed (e.g. item was added manually before casing consistency)
+        if not item_found_in_inventory:
+            for inv_item in account["inventory"]:
+                if inv_item.lower() == item_to_modify.lower():
+                    item_found_in_inventory = inv_item
+                    break
+
+        if item_found_in_inventory:
+            account["inventory"].remove(item_found_in_inventory)
+            await interaction.response.send_message(f"Removed {item_found_in_inventory.title()} from {user.display_name}'s inventory.")
         else:
-            await interaction.response.send_message(f"{user.display_name} does not have {shop_item} in their inventory.", ephemeral=True)
+            await interaction.response.send_message(f"{user.display_name} does not have {item_to_modify.title()} in their inventory.", ephemeral=True)
     else:
         await interaction.response.send_message("Invalid action. Use 'add' or 'take'.", ephemeral=True)
+
+@invedit.autocomplete("item")
+async def invedit_item_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    choices = [
+        app_commands.Choice(name=item_name.title() + f" (${item_price})", value=item_name)
+        for item_name, item_price in SHOP_ITEMS.items()
+        if current.lower() in item_name.lower()
+    ]
+    return choices[:25]
+
+@invedit.autocomplete("action")
+async def invedit_action_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    actions = ["add", "take"]
+    choices = [
+        app_commands.Choice(name=action_name.title(), value=action_name)
+        for action_name in actions
+        if current.lower() in action_name.lower()
+    ]
+    return choices
 
 @app_commands.command(name="moneyedit", description="Admin: Edit a user's balance.")
 @app_commands.describe(
