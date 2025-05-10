@@ -21,7 +21,7 @@ SHOP_ITEMS = {
     "RARE Golden Teto Plusie": 20000,
 }
 
-class Fun(commands.Cog):
+class money(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # A simple in-memory economy store where each user starts with $100 and an empty inventory.
@@ -152,7 +152,7 @@ class Fun(commands.Cog):
 
 # The setup function to add this cog and register the command group.
 async def setup(bot: commands.Bot):
-    cog = Fun(bot)
+    cog = money(bot)
     await bot.add_cog(cog)
     # Register the entire /fun group to the bot's command tree.
-    bot.tree.add_command(Fun.fun_group)
+    bot.tree.add_command(money.fun_group)
