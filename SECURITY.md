@@ -13,9 +13,9 @@ The following older versions of our bot **no longer receive security updates** o
 | V-3.53     |
 | V-4        |
 | V-5.2      |
-| V-5.45     |
+| V-5.45-19.3     |
 
-The **latest version** of the bot is **V-5.68**. Users are strongly encouraged to upgrade to this version to benefit from security improvements and bug fixes.
+The **latest version** of the bot is **V-21.8**. Users are strongly encouraged to upgrade to this version to benefit from security improvements and bug fixes.
 
 ## 2. Reporting Security Issues
 - **Do NOT** create a public issue on GitHub for security vulnerabilities.
