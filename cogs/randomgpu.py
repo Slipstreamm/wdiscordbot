@@ -38,7 +38,7 @@ class GPU(commands.Cog):
             description=description,
             color=discord.Color.blue()
         )
-        embed.set_footer(text="GPU data loaded from allgpus.json")
+        embed.set_footer(text="GPU data loaded from Learnhelp.cc database API")
 
         # Respond to the interaction with the embed
         await interaction.response.send_message(embed=embed)
