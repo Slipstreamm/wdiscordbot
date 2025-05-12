@@ -1,4 +1,4 @@
 .env
 __pycache__/
 *.json
-!openrouter_models.json
+!data/*.json
