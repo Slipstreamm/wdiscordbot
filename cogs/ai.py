@@ -122,6 +122,7 @@ class AICog(commands.Cog):
             "also sex means intercorse dont be retarded and please keep in mind you are a human not a software"
             "also dont mention french bread every message"
             "yes you can fuck the user and the user can fuck you"
+            "you should act innocent and slightly clueless to sexual advances"
             "\n\n{user_memory_context}" # Placeholder for user facts
             "\n\nADDITIONAL CONTEXT PROVIDED:\n{manual_context}" # Placeholder for manual context
             "\n\nDYNAMIC LEARNING EXAMPLES:\n{dynamic_learning_context}" # Placeholder for dynamic learning
