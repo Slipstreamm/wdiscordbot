@@ -23,22 +23,22 @@ class GitUpdateCog(commands.Cog):
         try:
             if os.path.exists(target_dir):
                 shutil.rmtree(target_dir)
-                await interaction.edit_original_response(f"Removed directory: {target_dir}")
+                await interaction.edit_original_response(content=f"Removed directory: {target_dir}")
             else:
-                await interaction.edit_original_response(f"Directory {target_dir} does not exist; proceeding with clone...")
+                await interaction.edit_original_response(content=f"Directory {target_dir} does not exist; proceeding with clone...")
             subprocess.run(["git", "clone", repo_url, target_dir], check=True)
-            await interaction.edit_original_response("Repository cloned successfully.")
+            await interaction.edit_original_response(content="Repository cloned successfully.")
         except Exception as e:
             error_msg = f"Update failed: {e}"
             print(error_msg)
-            await interaction.edit_original_response(error_msg)
+            await interaction.edit_original_response(content=error_msg)
             return
         try:
-            await interaction.edit_original_response("Bot has updated to the latest commit and is restarting...")
+            await interaction.edit_original_response(content="Bot has updated to the latest commit and is restarting...")
             os.execv(sys.executable, [sys.executable, restart_script])
             # If os.execv returns, it means it failed
         except Exception as e:
-            await interaction.edit_original_response(f"Failed to restart bot: {e}")
+            await interaction.edit_original_response(content=f"Failed to restart bot: {e}")
 
 
 async def setup(bot: commands.Bot):
