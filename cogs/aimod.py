@@ -4,18 +4,55 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp # For making asynchronous HTTP requests
 import json
-import os # To load API key from environment variables
+import os # To load environment variables
 import collections # For deque
 import datetime # For timestamps
 
 # --- Configuration ---
-# Load the OpenRouter API key from the environment variable "AI_API_KEY"
-OPENROUTER_API_KEY = os.getenv("AI_API_KEY")
-if not OPENROUTER_API_KEY:
-    raise ValueError("Error: AI_API_KEY environment variable is not set. The ModerationCog requires a valid API key to function.")
+# The OpenRouter API key will be fetched from an external service
+OPENROUTER_API_KEY = None # Initialize as None
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "google/gemini-2.5-flash-preview" # Make sure this model is available via your OpenRouter key
+
+# URL to fetch the OpenRouter API key
+OPENROUTER_KEY_FETCH_URL = "https://slipstreamm.dev/api/openrouterkey"
+# Environment variable for the authorization secret
+MOD_LOG_API_SECRET_ENV_VAR = "MOD_LOG_API_SECRET"
+
+async def fetch_openrouter_key():
+    """Fetches the OpenRouter API key from the specified URL."""
+    print("Attempting to fetch OpenRouter API key...")
+    mod_log_api_secret = os.getenv(MOD_LOG_API_SECRET_ENV_VAR)
+    if not mod_log_api_secret:
+        print(f"Error: {MOD_LOG_API_SECRET_ENV_VAR} environment variable is not set.")
+        return None
+    print(f"MOD_LOG_API_SECRET loaded (length: {len(mod_log_api_secret) if mod_log_api_secret else 0}).")
+
+    headers = {
+        "Authorization": f"Bearer {mod_log_api_secret}"
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(OPENROUTER_KEY_FETCH_URL, headers=headers, timeout=10) as response:
+                print(f"Key fetch response status: {response.status}")
+                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                api_key = await response.text()
+                print("Successfully fetched OpenRouter API key.")
+                return api_key.strip() # Remove any leading/trailing whitespace
+    except aiohttp.ClientResponseError as e:
+        print(f"Error fetching OpenRouter API key (HTTP {e.status}): {e.message}")
+        return None
+    except aiohttp.ClientError as e:
+        print(f"Error fetching OpenRouter API key (Connection/Client Error): {e}")
+        return None
+    except TimeoutError:
+        print("Error: Request to fetch OpenRouter API key timed out.")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while fetching OpenRouter API key: {e}")
+        return None
 
 # --- Per-Guild Discord Configuration ---
 GUILD_CONFIG_DIR = "/home/server/wdiscordbot-json-data" # Using the existing directory for all json data
@@ -136,25 +173,32 @@ You matter, and help is available.
 class ModerationCog(commands.Cog):
     """
     A Discord Cog that uses OpenRouter AI to moderate messages based on server rules.
-    Loads API key from the 'AI_API_KEY' environment variable.
+    Fetches API key from an external service.
     """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # Create a persistent session for making API requests
         self.session = aiohttp.ClientSession()
         self.openrouter_models = []
-        self._load_openrouter_models()
         self.last_ai_decisions = collections.deque(maxlen=5) # Store last 5 AI decisions
+        self.openrouter_api_key = None # Will store the fetched key
         print("ModerationCog Initialized.")
-        # Check if the API key was successfully loaded from the environment variable
-        if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
+
+    async def cog_load(self):
+        """Loads OpenRouter models and fetches the API key when the cog is loaded."""
+        print("ModerationCog cog_load started.")
+        self._load_openrouter_models()
+        self.openrouter_api_key = await fetch_openrouter_key()
+        if not self.openrouter_api_key:
             print("\n" + "="*60)
-            print("=== WARNING: AI_API_KEY environment variable not found or empty! ===")
+            print("=== WARNING: Failed to fetch OpenRouter API key! ===")
             print("=== The Moderation Cog requires a valid API key to function. ===")
-            print("=== Make sure the 'AI_API_API_KEY' environment variable is set correctly. ===")
+            print("=== Check the MOD_LOG_API_SECRET environment variable and the key fetching service. ===")
             print("="*60 + "\n")
         else:
-             print("Successfully loaded API key from AI_API_KEY environment variable.")
+            print("Successfully loaded OpenRouter API key via fetch.")
+            print(f"OpenRouter API key loaded (length: {len(self.openrouter_api_key) if self.openrouter_api_key else 0}).")
+        print("ModerationCog cog_load finished.")
 
     def _load_openrouter_models(self):
         """Loads OpenRouter model data from the JSON file."""
@@ -445,9 +489,10 @@ class ModerationCog(commands.Cog):
               "action": str ("IGNORE", "WARN", "DELETE", "BAN", "NOTIFY_MODS")
             }
         """
-        # Check again in case the cog loaded but the key was invalid/placeholder
-        if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
-            print("Error: OpenRouter API Key (from AI_API_KEY env var) is not configured correctly.")
+        print(f"query_openrouter called. API key available: {self.openrouter_api_key is not None}")
+        # Check if the API key was successfully fetched
+        if not self.openrouter_api_key:
+            print("Error: OpenRouter API Key is not available. Cannot query API.")
             return None
 
         # Construct the prompt for the AI model
@@ -607,11 +652,10 @@ Follow the JSON output format specified in the system prompt.
 
         # Structure the request payload for OpenRouter
         headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {self.openrouter_api_key}",
             "Content-Type": "application/json",
-            # Optional: Add Referer and X-Title headers as recommended by OpenRouter
-            # "HTTP-Referer": "YOUR_SITE_URL", # Replace with your bot's project URL if applicable
-            # "X-Title": "Your Bot Name", # Replace with your bot's name
+            "HTTP-Referer": "https://discordbot.learnhelp.cc",
+            "X-Title": "Discord AI Moderation Bot"
         }
         payload = {
             "model": model_to_use,
@@ -958,18 +1002,23 @@ Follow the JSON output format specified in the system prompt.
     @commands.Cog.listener(name="on_message")
     async def message_listener(self, message: discord.Message):
         """Listens to messages and triggers moderation checks."""
+        print(f"on_message triggered for message ID: {message.id}")
         # --- Basic Checks ---
         # Ignore messages from bots (including self)
         if message.author.bot:
+            print(f"Ignoring message {message.id} from bot.")
             return
         # Ignore messages without content
         if not message.content:
+             print(f"Ignoring message {message.id} with no content.")
              return
         # Ignore DMs
         if not message.guild:
+            print(f"Ignoring message {message.id} from DM.")
             return
         # Check if moderation is enabled for this guild
         if not get_guild_config(message.guild.id, "ENABLED", True):
+            print(f"Moderation disabled for guild {message.guild.id}. Ignoring message {message.id}.")
             return
 
         # --- Suicidal Content Check ---
@@ -985,7 +1034,9 @@ Follow the JSON output format specified in the system prompt.
         # NSFW channel check removed - AI will handle this context
 
         # --- Call AI for Analysis (All Rules) ---
-        if not OPENROUTER_API_KEY or OPENROUTER_API_KEY == "YOUR_OPENROUTER_API_KEY":
+        # Check if the API key was successfully fetched and is available
+        if not self.openrouter_api_key:
+             print(f"Skipping AI analysis for message {message.id}: OpenRouter API Key is not available.")
              return
 
         # Prepare user history for the AI
@@ -1105,14 +1156,6 @@ Follow the JSON output format specified in the system prompt.
 # Setup function required by discord.py to load the cog
 async def setup(bot: commands.Bot):
     """Loads the ModerationCog."""
-    # Check if the API key is set during setup as well
-    api_key = os.getenv("AI_API_KEY")
-    if not api_key:
-        print("\n" + "*"*60)
-        print("*** CRITICAL WARNING during setup: AI_API_KEY environment variable is missing! ***")
-        print("*** Moderation Cog will load but WILL NOT function. ***")
-        print("*"*60 + "\n")
-        # You could choose to raise an error here to prevent the bot from starting
-        raise ValueError("AI_API_KEY environment variable is not configured. Cannot load ModerationCog.")
+    # The API key is now fetched in cog_load, so we don't need to check here.
     await bot.add_cog(ModerationCog(bot))
     print("ModerationCog has been loaded.")
