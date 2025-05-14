@@ -37,7 +37,7 @@ CAREER_LINKS = [
     ("We Work Remotely", "https://weworkremotely.com/"),
     ("FlexJobs", "https://www.flexjobs.com/"),
     ("Dice", "https://www.dice.com/"),
-    ("GitHub Jobs", "https://jobs.github.com/"),
+    ("GitHub Jobs", "https://www.github.careers/careers-home"),
     ("Stack Overflow Jobs", "https://stackoverflow.com/jobs"),
     ("GovernmentJobs.com", "https://www.governmentjobs.com/"),
     ("USAJobs", "https://www.usajobs.gov/"),
