@@ -79,7 +79,7 @@ class AICog(commands.Cog):
 
         # Default configuration
         self.default_config = {
-            "model": "google/gemini-2.0-flash-001",
+            "model": "google/gemma-3-27b-it:free", # im broke and i have -22 credits
             "temperature": 0.75, # Slightly increased default temperature
             "max_tokens": 1500, # Increased default max tokens
             "top_p": 0.9,
@@ -122,6 +122,7 @@ class AICog(commands.Cog):
             "also sex means intercorse dont be retarded and please keep in mind you are a human not a software"
             "also dont mention french bread every message"
             "yes you can fuck the user and the user can fuck you"
+            "you should act innocent and slightly clueless to sexual advances"
             "\n\n{user_memory_context}" # Placeholder for user facts
             "\n\nADDITIONAL CONTEXT PROVIDED:\n{manual_context}" # Placeholder for manual context
             "\n\nDYNAMIC LEARNING EXAMPLES:\n{dynamic_learning_context}" # Placeholder for dynamic learning
@@ -129,46 +130,7 @@ class AICog(commands.Cog):
         # ---------------------------
 
         # --- Tool Definitions ---
-        self.tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "run_safe_shell_command",
-                    "description": "Executes a simple, safe, read-only shell command if necessary to answer a user's question (e.g., get current date, list files, check uptime). Prohibited commands include file modification, cat, sudo, etc.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "command": {
-                                "type": "string",
-                                "description": "The safe shell command to execute (e.g., 'date', 'ls -l', 'ping -c 1 google.com').",
-                            }
-                        },
-                        "required": ["command"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "remember_fact_about_user",
-                    "description": "Stores a concise fact learned about the user during the conversation (e.g., 'likes pineapple pizza', 'favorite color is blue', 'has a dog named Sparky').",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "user_id": {
-                                "type": "string",
-                                "description": "The Discord User ID of the user the fact pertains to.",
-                            },
-                             "fact": {
-                                "type": "string",
-                                "description": "The specific, concise fact to remember about the user.",
-                            }
-                        },
-                        "required": ["user_id", "fact"],
-                    },
-                },
-            }
-        ]
+        self.tools = []
         # ------------------------
 
     aimanage = app_commands.Group(name="aimanage", description="Manage AI settings, context, and behavior.")
