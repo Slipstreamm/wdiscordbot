@@ -55,10 +55,11 @@ CAREER_LINKS = [
 class CareerLinks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        @app_commands.command(name="getajob", description="Get a fucking job.")
-        async def careers(self, interaction: discord.Interaction):
-            name, url = random.choice(CAREER_LINKS)
-            await interaction.response.send_message(f"Get a job. \n**{name}**: {url}")
+
+    @app_commands.command(name="getajob", description="Get a fucking job.")
+    async def careers(self, interaction: discord.Interaction):
+        name, url = random.choice(CAREER_LINKS)
+        await interaction.response.send_message(f"Get a job. \n**{name}**: {url}")
 
 async def setup(bot):
     await bot.add_cog(CareerLinks(bot))
