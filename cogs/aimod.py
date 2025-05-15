@@ -519,7 +519,7 @@ Instructions:
    - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
    - For Rule 1 (NSFW content):
-     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
+     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, literally any kind of sexual content is allowed, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
      - If "Channel Age-Restricted/NSFW (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
@@ -608,7 +608,8 @@ Example Response (Suicidal Content):
             # Fetch last 11 messages (current + 10 previous). We'll filter out the current one
             async for prev_msg in message.channel.history(limit=11, before=message):
                 if prev_msg.id != message.id: # Ensure we don't include the current message itself
-                    history_messages.append(f"- {prev_msg.author.name}: \"{prev_msg.content[:150]}{'...' if len(prev_msg.content) > 150 else ''}\" (ID: {prev_msg.id})")
+                    author_name = prev_msg.author.name + " (BOT)" if prev_msg.author.bot else prev_msg.author.name
+                    history_messages.append(f"- {author_name}: \"{prev_msg.content[:150]}{'...' if len(prev_msg.content) > 150 else ''}\" (ID: {prev_msg.id})")
             if history_messages:
                 # Reverse to show oldest first in the snippet, then take the last 10.
                 recent_channel_history_str = "\n".join(list(reversed(history_messages))[:10])
