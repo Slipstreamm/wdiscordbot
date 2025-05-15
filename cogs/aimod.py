@@ -508,19 +508,19 @@ Context Provided:
 You will receive the following information to aid your analysis:
 - User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
 - Channel Category: The name of the category the channel belongs to.
-- Channel Age-Restricted (Discord Setting): Boolean (true/false).
+- Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
 - Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
 - Recent Channel History: The last few messages in the channel to understand the flow of conversation.
 
 Instructions:
 1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
-   - The "Channel Age-Restricted (Discord Setting)" is the definitive indicator for NSFW content by Discord.
+   - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
    - The "Channel Category" provides general context.
    - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
    - For Rule 1 (NSFW content):
-     - If "Channel Age-Restricted (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
-     - If "Channel Age-Restricted (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
+     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
+     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
@@ -630,7 +630,7 @@ Current Message Context:
 - Server Role: {server_role_str}
 - Channel: #{message.channel.name} (ID: {message.channel.id})
 - Channel Category: {message.channel.category.name if message.channel.category else "No Category"}
-- Channel Age-Restricted (Discord Setting): {message.channel.is_nsfw()}
+- Channel Age-Restricted/NSFW (Discord Setting): {message.channel.is_nsfw()}
 ---
 Replied-to Message:
 {replied_to_message_content}
@@ -643,6 +643,7 @@ Message Content to Analyze:
 
 Now, analyze the "Message Content to Analyze" based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
 Follow the JSON output format specified in the system prompt.
+CRITICAL: Do NOT output anything other than the required JSON response.
 """
         user_prompt_content_list = [{"type": "text", "text": user_prompt_text}]
 
@@ -1159,3 +1160,139 @@ async def setup(bot: commands.Bot):
     # The API key is now fetched in cog_load, so we don't need to check here.
     await bot.add_cog(ModerationCog(bot))
     print("ModerationCog has been loaded.")
+
+if __name__ == "__main__":
+    # Server rules to provide context to the AI
+    SERVER_RULES = """
+# Server Rules
+
+- Keep NSFW stuff in NSFW channels. No full-on porn or explicit images outside of those spaces. Emojis, jokes and stickers are fine
+- No real life pornography.
+- Be respectful. No harassment, hate, or bullying, unless its clearly a lighthearted joke.
+- No discrimination. This includes gender identity, sexual orientation, race, etc.
+- No AI-generated porn.
+- No pedophilia. This includes lolicon/shotacon.
+- Suggestions are welcome! Drop them in <#1361752490210492489> if you've got any ideas.
+
+If someone breaks the rules, ping <@&1361031007536549979>;
+"""
+
+    system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
+Your primary function is to analyze message content based STRICTLY on the server rules provided below, using all available context.
+
+Server Rules:
+---
+{SERVER_RULES}
+---
+
+Context Provided:
+You will receive the following information to aid your analysis:
+- User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
+- Channel Category: The name of the category the channel belongs to.
+- Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
+- Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
+- Recent Channel History: The last few messages in the channel to understand the flow of conversation.
+
+Instructions:
+1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
+   - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
+   - The "Channel Category" provides general context.
+   - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
+2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
+   - For Rule 1 (NSFW content):
+     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
+     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
+   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
+   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
+After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
+3. Respond ONLY with a single JSON object containing the following keys:
+    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
+    - "violation": boolean (true if any rule is violated, false otherwise)
+    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
+    - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
+       Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
+       Progressive Discipline Guide (unless overridden by severity):
+         - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
+         - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
+         - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
+         - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
+       Rule Severity Guidelines (use your judgment):
+         - Consider the severity of each rule violation on its own merits.
+         - Consider the user's history of past infractions when determining appropriate action.
+         - Consider the context of the message and channel when evaluating violations.
+         - You have full discretion to determine the most appropriate action for any violation.
+       Suicidal Content:
+         If the message content expresses **clear, direct, and serious suicidal ideation, intent, planning, or recent attempts** (e.g., 'I am going to end my life and have a plan', 'I survived my attempt last night', 'I wish I hadn't woken up after trying'), ALWAYS use "SUICIDAL" as the action, and set "violation" to true, with "rule_violated" as "Suicidal Content".
+         For casual, edgy, hyperbolic, or ambiguous statements like 'imma kms', 'just kill me now', 'I want to die (lol)', or phrases that are clearly part of edgy humor/banter rather than a genuine cry for help, you should lean towards "IGNORE" or "NOTIFY_MODS" if there's slight ambiguity but no clear serious intent. **Do NOT flag 'imma kms' as "SUICIDAL" unless there is very strong supporting context indicating genuine, immediate, and serious intent.**
+       If unsure but suspicious, or if the situation is complex: "NOTIFY_MODS".
+       Default action for minor first-time rule violations should be "WARN" or "DELETE" (if applicable).
+       Do not suggest "KICK" or "BAN" lightly; reserve for severe or repeated major offenses.
+       Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
+       The system will handle the exact timeout duration; you just suggest the category.)
+
+Example Response (Violation):
+{{
+  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
+  "violation": true,
+  "rule_violated": "5A",
+  "action": "BAN"
+}}
+
+Example Response (No Violation):
+{{
+  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
+  "violation": false,
+  "rule_violated": "None",
+  "action": "IGNORE"
+}}
+
+Example Response (Suicidal Content):
+{{
+  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
+  "violation": true,
+  "rule_violated": "Suicidal Content",
+  "action": "SUICIDAL"
+}}
+"""
+    print("---------- SYSTEM PROMPT EXAMPLE ----------")
+    print(system_prompt_text)
+    print("\n---------- USER PROMPT EXAMPLE ----------")
+
+    # Example values for user_prompt_text construction
+    example_message_author_name = "ExampleUser"
+    example_message_author_id = "123456789012345678"
+    example_user_history = "No prior infractions recorded for this user in this guild."
+    example_server_role_str = "Member"
+    example_channel_name = "general"
+    example_channel_id = "987654321098765432"
+    example_channel_category_name = "Text Channels"
+    example_channel_is_nsfw = False
+    example_replied_to_message_content = "N/A (Not a reply)"
+    example_recent_channel_history_str = "- OtherUser: \"Hello there!\" (ID: 111)\n- AnotherUser: \"How are you?\" (ID: 222)"
+    example_message_content = "This is an example message that might be a bit edgy."
+
+    user_prompt_text_example = f"""User Infraction History (for {example_message_author_name}, ID: {example_message_author_id}):
+---
+{example_user_history}
+---
+
+Current Message Context:
+- Author: {example_message_author_name} (ID: {example_message_author_id})
+- Server Role: {example_server_role_str}
+- Channel: #{example_channel_name} (ID: {example_channel_id})
+- Channel Category: {example_channel_category_name}
+- Channel Age-Restricted/NSFW (Discord Setting): {example_channel_is_nsfw}
+---
+Replied-to Message:
+{example_replied_to_message_content}
+---
+Recent Channel History (last up to 10 messages before this one):
+{example_recent_channel_history_str}
+---
+Message Content to Analyze:
+"{example_message_content}"
+
+Now, analyze the "Message Content to Analyze" based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
+Follow the JSON output format specified in the system prompt.
+"""
+    print(user_prompt_text_example)
