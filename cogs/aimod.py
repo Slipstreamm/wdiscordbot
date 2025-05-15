@@ -483,9 +483,9 @@ class ModerationCog(commands.Cog):
             A dictionary containing the AI's decision, or None if an error occurs.
             Expected format:
             {
+              "reasoning": str,
               "violation": bool,
               "rule_violated": str ("None", "1", "5A", etc.),
-              "reasoning": str,
               "action": str ("IGNORE", "WARN", "DELETE", "BAN", "NOTIFY_MODS")
             }
         """
@@ -525,9 +525,9 @@ Instructions:
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
+    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
     - "violation": boolean (true if any rule is violated, false otherwise)
     - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
-    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
     - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
        Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
        Progressive Discipline Guide (unless overridden by severity):
@@ -551,25 +551,25 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
 
 Example Response (Violation):
 {{
+  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
   "violation": true,
   "rule_violated": "5A",
-  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
   "action": "BAN"
 }}
 
 Example Response (No Violation):
 {{
+  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
   "violation": false,
   "rule_violated": "None",
-  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
   "action": "IGNORE"
 }}
 
 Example Response (Suicidal Content):
 {{
+  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
   "violation": true,
   "rule_violated": "Suicidal Content",
-  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
   "action": "SUICIDAL"
 }}
 """
