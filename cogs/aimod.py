@@ -535,6 +535,8 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
          - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
          - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
          - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
+       Spamming:
+         - If a user continuously sends very long messages that are off-topic, repetitive, or appear to be meaningless spam (e.g., character floods, nonsensical text), suggest "TIMEOUT_MEDIUM" or "TIMEOUT_LONG" depending on severity and history, even if the content itself doesn't violate other specific rules. This is to maintain chat readability.
        Rule Severity Guidelines (use your judgment):
          - Consider the severity of each rule violation on its own merits.
          - Consider the user's history of past infractions when determining appropriate action.
@@ -1217,6 +1219,8 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
          - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
          - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
          - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
+       Spamming:
+         - If a user continuously sends very long messages that are off-topic, repetitive, or appear to be meaningless spam (e.g., character floods, nonsensical text), suggest "TIMEOUT_MEDIUM" or "TIMEOUT_LONG" depending on severity and history, even if the content itself doesn't violate other specific rules. This is to maintain chat readability.
        Rule Severity Guidelines (use your judgment):
          - Consider the severity of each rule violation on its own merits.
          - Consider the user's history of past infractions when determining appropriate action.
