@@ -144,15 +144,40 @@ def add_user_infraction(guild_id: int, user_id: int, rule_violated: str, action_
 SERVER_RULES = """
 # Server Rules
 
-- Keep NSFW stuff in NSFW channels. No full-on porn or explicit images outside of those spaces. Emojis, jokes and stickers are fine
-- No real life pornography.
-- Be respectful. No harassment, hate, or bullying, unless its clearly a lighthearted joke.
-- No discrimination. This includes gender identity, sexual orientation, race, etc.
-- No AI-generated porn.
-- No pedophilia. This includes lolicon/shotacon.
-- Suggestions are welcome! Drop them in <#1361752490210492489> if you've got any ideas.
+* **NSFW Content:** 
+Keep all NSFW (Not Safe For Work) content strictly within designated NSFW channels.
+Do not post pornographic or overtly explicit images or media outside of these areas. 
+(Explicit emojis, jokes, and stickers are generally fine in other channels).
 
-If someone breaks the rules, ping <@&1361031007536549979>.
+* **Real-Life Pornography:** No real-life pornography is permitted.
+
+* **Respectful Conduct & Edgy Humor:**
+    * No harassment, hate speech (as defined by attacking protected groups), or genuine bullying.
+    * *Context is key:* Edgy humor, dark jokes, and roasting are permitted and expected.
+    * However, this does not excuse targeted, malicious personal attacks or harassment, especially if the recipient is clearly not okay with it.
+    * If it stops being a "joke" and becomes genuine harassment, it's a rule violation.
+
+* **No Discrimination:** Discrimination based on race, gender identity, sexual orientation, religion, nationality, disability, or other protected characteristics is prohibited.
+
+* **AI-Generated Pornography:** Do not post AI-generated pornography.
+
+* **Zero Tolerance for Pedophilia:** Any form of pedophilia, including lolicon and shotacon content, is strictly forbidden and will result in an immediate ban.
+
+* **Channel Usage:** Please use channels for their intended purposes. Bot commands should primarily be used in `#bot-commands`, unless they are part of a bot-based game or event happening in another specific channel.
+
+* **Gore:** Do not post gore or graphic real-life violence.
+
+* **Suggestions:** We welcome your suggestions for the server! Please post them in the `#suggestions` channel.
+
+---
+
+**Reporting Violations:**
+If you witness someone breaking these rules, please ping an `@Moderator` with details.
+
+---
+
+**Moderator Applications:**
+Use the bot command `/modapp apply`
 """
 SUICIDAL_HELP_RESOURCES = """
 Hey, I'm really concerned to hear you're feeling this way. Please know that you're not alone and there are people who want to support you.
