@@ -7,6 +7,12 @@ import json
 import os # To load environment variables
 import collections # For deque
 import datetime # For timestamps
+import io # For BytesIO operations
+import base64 # For encoding images to base64
+from PIL import Image # For image processing
+import cv2 # For video processing
+import numpy as np # For array operations
+import tempfile # For temporary file operations
 
 # --- Configuration ---
 # The OpenRouter API key will be fetched from an external service
@@ -144,9 +150,9 @@ def add_user_infraction(guild_id: int, user_id: int, rule_violated: str, action_
 SERVER_RULES = """
 # Server Rules
 
-* **NSFW Content:** 
+* **NSFW Content:**
 Keep all NSFW (Not Safe For Work) content strictly within designated NSFW channels.
-Do not post pornographic or overtly explicit images or media outside of these areas. 
+Do not post pornographic or overtly explicit images or media outside of these areas.
 (Explicit emojis, jokes, and stickers are generally fine in other channels).
 
 * **Real-Life Pornography:** No real-life pornography is permitted.
@@ -207,6 +213,12 @@ class ModerationCog(commands.Cog):
         self.openrouter_models = []
         self.last_ai_decisions = collections.deque(maxlen=5) # Store last 5 AI decisions
         self.openrouter_api_key = None # Will store the fetched key
+        # Supported image file extensions
+        self.image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
+        # Supported animated file extensions
+        self.gif_extensions = ['.gif']
+        # Supported video file extensions
+        self.video_extensions = ['.mp4', '.webm', '.mov']
         print("ModerationCog Initialized.")
 
     async def cog_load(self):
@@ -253,6 +265,142 @@ class ModerationCog(commands.Cog):
         """Clean up the session when the cog is unloaded."""
         await self.session.close()
         print("ModerationCog Unloaded, session closed.")
+
+    async def process_image(self, attachment: discord.Attachment) -> tuple[str, bytes]:
+        """
+        Process an image attachment and return its base64 encoding.
+
+        Args:
+            attachment: The Discord attachment containing the image
+
+        Returns:
+            Tuple of (mime_type, image_bytes)
+        """
+        try:
+            # Download the image
+            image_bytes = await attachment.read()
+            mime_type = attachment.content_type or "image/jpeg"  # Default to jpeg if not specified
+
+            # Return the image bytes and mime type
+            return mime_type, image_bytes
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            return None, None
+
+    async def process_gif(self, attachment: discord.Attachment) -> tuple[str, bytes]:
+        """
+        Process a GIF attachment and extract the first frame.
+
+        Args:
+            attachment: The Discord attachment containing the GIF
+
+        Returns:
+            Tuple of (mime_type, image_bytes) of the first frame
+        """
+        try:
+            # Download the GIF
+            gif_bytes = await attachment.read()
+
+            # Open the GIF using PIL
+            with Image.open(io.BytesIO(gif_bytes)) as gif:
+                # Convert to RGB if needed
+                if gif.mode != 'RGB':
+                    first_frame = gif.convert('RGB')
+                else:
+                    first_frame = gif
+
+                # Save the first frame to a bytes buffer
+                output = io.BytesIO()
+                first_frame.save(output, format='JPEG')
+                output.seek(0)
+
+                return "image/jpeg", output.getvalue()
+        except Exception as e:
+            print(f"Error processing GIF: {e}")
+            return None, None
+
+    async def process_attachment(self, attachment: discord.Attachment) -> tuple[str, bytes, str]:
+        """
+        Process any attachment and return the appropriate image data.
+
+        Args:
+            attachment: The Discord attachment
+
+        Returns:
+            Tuple of (mime_type, image_bytes, attachment_type)
+            attachment_type is one of: 'image', 'gif', 'video', or None if unsupported
+        """
+        if not attachment:
+            return None, None, None
+
+        # Get the file extension
+        filename = attachment.filename.lower()
+        _, ext = os.path.splitext(filename)
+
+        # Process based on file type
+        if ext in self.image_extensions:
+            mime_type, image_bytes = await self.process_image(attachment)
+            return mime_type, image_bytes, 'image'
+        elif ext in self.gif_extensions:
+            mime_type, image_bytes = await self.process_gif(attachment)
+            return mime_type, image_bytes, 'gif'
+        elif ext in self.video_extensions:
+            mime_type, image_bytes = await self.process_video(attachment)
+            return mime_type, image_bytes, 'video'
+        else:
+            print(f"Unsupported file type: {ext}")
+            return None, None, None
+
+    async def process_video(self, attachment: discord.Attachment) -> tuple[str, bytes]:
+        """
+        Process a video attachment and extract the first frame.
+
+        Args:
+            attachment: The Discord attachment containing the video
+
+        Returns:
+            Tuple of (mime_type, image_bytes) of the first frame
+        """
+        try:
+            # Download the video to a temporary file
+            video_bytes = await attachment.read()
+            with tempfile.NamedTemporaryFile(suffix=os.path.splitext(attachment.filename)[1], delete=False) as temp_file:
+                temp_file_path = temp_file.name
+                temp_file.write(video_bytes)
+
+            try:
+                # Open the video with OpenCV
+                cap = cv2.VideoCapture(temp_file_path)
+                ret, frame = cap.read()
+
+                if not ret:
+                    print(f"Failed to read frame from video: {attachment.filename}")
+                    return None, None
+
+                # Convert BGR to RGB (OpenCV uses BGR by default)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                # Convert to PIL Image
+                pil_image = Image.fromarray(frame_rgb)
+
+                # Save to bytes buffer
+                output = io.BytesIO()
+                pil_image.save(output, format='JPEG')
+                output.seek(0)
+
+                # Clean up
+                cap.release()
+
+                return "image/jpeg", output.getvalue()
+            finally:
+                # Clean up the temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    print(f"Error removing temporary file: {e}")
+        except Exception as e:
+            print(f"Error processing video: {e}")
+            return None, None
 
     # --- AI Moderation Command Group ---
     aimod_group = app_commands.Group(name="aimod", description="AI Moderation commands.")
@@ -331,7 +479,7 @@ class ModerationCog(commands.Cog):
                 channel_mentions.append(channel_obj.mention)
             else:
                 channel_mentions.append(f"ID:{channel_id} (not found)")
-        
+
         await interaction.response.send_message(f"Configured NSFW channels:\n- " + "\n- ".join(channel_mentions), ephemeral=False)
 
     # Note: The @app_commands.command(name="modenable", ...) and other commands like
@@ -459,7 +607,7 @@ class ModerationCog(commands.Cog):
             m for m in self.openrouter_models
             if current.lower() in m["name"].lower() or current.lower() in m["id"].lower()
         ][:25]
-        
+
         choices_to_return = [
             app_commands.Choice(name=m["name"][:100], value=m["id"][:100]) # Truncate name/value
             for m in filtered_models
@@ -495,14 +643,16 @@ class ModerationCog(commands.Cog):
     #     self.bot.tree.add_command(self.modsetmodel)
     #     self.bot.tree.add_command(self.modgetmodel)
 
-    async def query_openrouter(self, message: discord.Message, message_content: str, user_history: str):
+    async def query_openrouter(self, message: discord.Message, message_content: str, user_history: str, image_data_list=None):
         """
         Sends the message content, user history, and additional context to the OpenRouter API for analysis.
+        Optionally includes image data for visual content moderation.
 
         Args:
             message: The original discord.Message object.
             message_content: The text content of the message.
             user_history: A string summarizing the user's past infractions.
+            image_data_list: Optional list of tuples (mime_type, image_bytes, attachment_type, filename) for image moderation.
 
         Returns:
             A dictionary containing the AI's decision, or None if an error occurs.
@@ -522,7 +672,7 @@ class ModerationCog(commands.Cog):
 
         # Construct the prompt for the AI model
         system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
-Your primary function is to analyze message content based STRICTLY on the server rules provided below, using all available context.
+Your primary function is to analyze message content and attached media based STRICTLY on the server rules provided below, using all available context.
 
 Server Rules:
 ---
@@ -536,12 +686,16 @@ You will receive the following information to aid your analysis:
 - Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
 - Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
 - Recent Channel History: The last few messages in the channel to understand the flow of conversation.
+- Attached Media: If the message contains image, GIF, or video attachments, they will be provided for analysis. For GIFs and videos, only the first frame is extracted.
 
 Instructions:
-1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
+1. Review the "Message Content" and any attached media against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
    - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
    - The "Channel Category" provides general context.
    - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
+   - If images, GIFs, or videos are attached, analyze ALL of them for rule violations. For GIFs and videos, only the first frame is provided.
+   - Pay special attention to images that may contain NSFW content, pornography, gore, or other prohibited visual content.
+   - If multiple attachments are present, a violation in ANY of them should be flagged.
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
    - For Rule 1 (NSFW content):
      - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, literally any kind of sexual content is allowed, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
@@ -576,7 +730,7 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
        Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
        The system will handle the exact timeout duration; you just suggest the category.)
 
-Example Response (Violation):
+Example Response (Text Violation):
 {{
   "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
   "violation": true,
@@ -584,9 +738,25 @@ Example Response (Violation):
   "action": "BAN"
 }}
 
+Example Response (Image Violation):
+{{
+  "reasoning": "Attachment #2 contains explicit pornographic imagery in a non-NSFW channel, violating rule 1.",
+  "violation": true,
+  "rule_violated": "1",
+  "action": "DELETE"
+}}
+
+Example Response (Multiple Attachments Violation):
+{{
+  "reasoning": "While the text content is fine, attachment #3 contains AI-generated pornography, violating rule 4.",
+  "violation": true,
+  "rule_violated": "4",
+  "action": "WARN"
+}}
+
 Example Response (No Violation):
 {{
-  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
+  "reasoning": "The message and all attached images are respectful and contain no prohibited content.",
   "violation": false,
   "rule_violated": "None",
   "action": "IGNORE"
@@ -648,6 +818,46 @@ Example Response (Suicidal Content):
             recent_channel_history_str = f"N/A (Error fetching channel history: {e})"
 
 
+        # Prepare image data if provided
+        image_content = ""
+        if image_data_list and len(image_data_list) > 0:
+            try:
+                # Process all images
+                image_sections = []
+                for i, (mime_type, image_bytes, attachment_type, filename) in enumerate(image_data_list):
+                    try:
+                        # Encode image to base64
+                        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                        # Create data URL
+                        image_data_url = f"data:{mime_type};base64,{base64_image}"
+
+                        # Add image information to the prompt
+                        image_section = f"""
+Attachment #{i+1}:
+- Filename: {filename}
+- Type: {attachment_type.upper()}
+- Format: {mime_type}
+- Image Data: {image_data_url}
+"""
+                        image_sections.append(image_section)
+                    except Exception as e:
+                        print(f"Error encoding image data for attachment {filename}: {e}")
+                        image_sections.append(f"Attachment #{i+1}: {filename} (Error: Could not process)")
+
+                # Combine all image sections
+                if image_sections:
+                    image_content = f"""
+---
+Attached Media ({len(image_sections)} attachments):
+{"".join(image_sections)}
+
+Please analyze both the text content AND all attached media for rule violations.
+For GIFs and videos, only the first frame is provided for analysis.
+"""
+            except Exception as e:
+                print(f"Error processing image data: {e}")
+                image_content = f"Note: There were {len(image_data_list)} attached images, but they could not be processed for analysis."
+
         user_prompt_text = f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
 ---
 {user_history if user_history else "No prior infractions recorded for this user in this guild."}
@@ -668,8 +878,9 @@ Recent Channel History (last up to 10 messages before this one):
 ---
 Message Content to Analyze:
 "{message_content}"
+{image_content}
 
-Now, analyze the "Message Content to Analyze" based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
+Now, analyze the "Message Content to Analyze" and any attached media based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
 Follow the JSON output format specified in the system prompt.
 CRITICAL: Do NOT output anything other than the required JSON response.
 """
@@ -837,6 +1048,14 @@ CRITICAL: Do NOT output anything other than the required JSON response.
         # Log message content and attachments for audit purposes
         msg_content = message.content if message.content else "*No text content*"
         notification_embed.add_field(name="Message Content", value=msg_content[:1024], inline=False)
+
+        # Add attachment information if present
+        if message.attachments:
+            attachment_info = []
+            for i, attachment in enumerate(message.attachments):
+                attachment_info.append(f"{i+1}. {attachment.filename} ({attachment.content_type}) - [Link]({attachment.url})")
+            attachment_text = "\n".join(attachment_info)
+            notification_embed.add_field(name="Attachments", value=attachment_text[:1024], inline=False)
         # Use the model_used variable that was defined earlier
         notification_embed.set_footer(text=f"AI Model: {model_used}. Learnhelp AI Moderation.")
         notification_embed.timestamp = discord.utils.utcnow() # Using discord.utils.utcnow() which is still supported
@@ -1056,8 +1275,23 @@ CRITICAL: Do NOT output anything other than the required JSON response.
         # --- Prepare for AI Analysis ---
         message_content = message.content
 
-        # Only proceed with AI analysis if there's text to analyze
-        if not message_content:
+        # Check for attachments
+        image_data_list = []
+        if message.attachments:
+            # Process all attachments
+            for attachment in message.attachments:
+                mime_type, image_bytes, attachment_type = await self.process_attachment(attachment)
+                if mime_type and image_bytes and attachment_type:
+                    image_data_list.append((mime_type, image_bytes, attachment_type, attachment.filename))
+                    print(f"Processed attachment: {attachment.filename} as {attachment_type}")
+
+            # Log the number of attachments processed
+            if image_data_list:
+                print(f"Processed {len(image_data_list)} attachments for message {message.id}")
+
+        # Only proceed with AI analysis if there's text to analyze or attachments
+        if not message_content and not image_data_list:
+            print(f"Ignoring message {message.id} with no content or valid attachments.")
             return
 
         # NSFW channel check removed - AI will handle this context
@@ -1083,7 +1317,10 @@ CRITICAL: Do NOT output anything other than the required JSON response.
 
 
         print(f"Analyzing message {message.id} from {message.author} in #{message.channel.name} with history...")
-        ai_decision = await self.query_openrouter(message, message_content, user_history_summary)
+        if image_data_list:
+            attachment_types = [data[2] for data in image_data_list]
+            print(f"Including {len(image_data_list)} attachments in analysis: {', '.join(attachment_types)}")
+        ai_decision = await self.query_openrouter(message, message_content, user_history_summary, image_data_list)
 
         # --- Process AI Decision ---
         if not ai_decision:
@@ -1154,7 +1391,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
                     f"**Action:** {action}\n"
                     f"**Reasoning:** ```{reasoning}```\n"
                 )
-            
+
             # Truncate field_value if it's too long for an embed field
             if len(field_value) > 1024:
                 field_value = field_value[:1020] + "..."
@@ -1166,7 +1403,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
             )
             if len(embed.fields) >= 5: # Limit to 5 fields in one embed for very long entries, or send multiple embeds
                 break
-        
+
         if not embed.fields: # Should not happen if self.last_ai_decisions is not empty
              await interaction.response.send_message("Could not format AI decisions.", ephemeral=True)
              return
