@@ -686,7 +686,7 @@ You will receive the following information to aid your analysis:
 - Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
 - Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
 - Recent Channel History: The last few messages in the channel to understand the flow of conversation.
-- Attached Media: If the message contains image, GIF, or video attachments, they will be provided for analysis. For GIFs and videos, only the first frame is extracted.
+- Attached Media: If the message contains image, GIF, or video attachments, they will be provided as image_url objects in the content array. For GIFs and videos, only the first frame is extracted.
 
 Instructions:
 1. Review the "Message Content" and any attached media against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
@@ -708,6 +708,7 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
     - "violation": boolean (true if any rule is violated, false otherwise)
     - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
     - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
+    - "notify_mods_message": optional string (If the suggested action is "NOTIFY_MODS", provide an optional brief message here for the moderators, e.g., "User's message is slightly ambiguous, human review needed.").
        Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
        Progressive Discipline Guide (unless overridden by severity):
          - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
@@ -769,12 +770,22 @@ Example Response (Suicidal Content):
   "rule_violated": "Suicidal Content",
   "action": "SUICIDAL"
 }}
+
+Example Response (Notify Mods):
+{{
+  "reasoning": "The message contains potentially sensitive content that requires human review.",
+  "violation": true,
+  "rule_violated": "Review Required",
+  "action": "NOTIFY_MODS",
+  "notify_mods_message": "Content is borderline, please review."
+}}
+
 """
 
         member = message.author # This is a discord.Member object
-        server_role_str = "Member" # Default
+        server_role_str = "Unprivileged Member" # Default
 
-        if member == message.guild.owner:
+        if member == await message.guild.fetch_member(message.guild.owner_id):
             server_role_str = "Server Owner"
         elif member.guild_permissions.administrator:
             server_role_str = "Admin"
@@ -782,6 +793,8 @@ Example Response (Suicidal Content):
             perms = member.guild_permissions
             if perms.manage_messages or perms.kick_members or perms.ban_members or perms.moderate_members:
                 server_role_str = "Moderator"
+        
+        print(f"role: {server_role_str}")
 
         # --- Fetch Replied-to Message ---
         replied_to_message_content = "N/A (Not a reply)"
@@ -818,47 +831,11 @@ Example Response (Suicidal Content):
             recent_channel_history_str = f"N/A (Error fetching channel history: {e})"
 
 
-        # Prepare image data if provided
-        image_content = ""
-        if image_data_list and len(image_data_list) > 0:
-            try:
-                # Process all images
-                image_sections = []
-                for i, (mime_type, image_bytes, attachment_type, filename) in enumerate(image_data_list):
-                    try:
-                        # Encode image to base64
-                        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                        # Create data URL
-                        image_data_url = f"data:{mime_type};base64,{base64_image}"
+        # Prepare user prompt content list with proper OpenRouter format
+        user_prompt_content_list = []
 
-                        # Add image information to the prompt
-                        image_section = f"""
-Attachment #{i+1}:
-- Filename: {filename}
-- Type: {attachment_type.upper()}
-- Format: {mime_type}
-- Image Data: {image_data_url}
-"""
-                        image_sections.append(image_section)
-                    except Exception as e:
-                        print(f"Error encoding image data for attachment {filename}: {e}")
-                        image_sections.append(f"Attachment #{i+1}: {filename} (Error: Could not process)")
-
-                # Combine all image sections
-                if image_sections:
-                    image_content = f"""
----
-Attached Media ({len(image_sections)} attachments):
-{"".join(image_sections)}
-
-Please analyze both the text content AND all attached media for rule violations.
-For GIFs and videos, only the first frame is provided for analysis.
-"""
-            except Exception as e:
-                print(f"Error processing image data: {e}")
-                image_content = f"Note: There were {len(image_data_list)} attached images, but they could not be processed for analysis."
-
-        user_prompt_text = f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
+        # Add the text context first
+        user_context_text = f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
 ---
 {user_history if user_history else "No prior infractions recorded for this user in this guild."}
 ---
@@ -878,13 +855,45 @@ Recent Channel History (last up to 10 messages before this one):
 ---
 Message Content to Analyze:
 "{message_content}"
-{image_content}
 
-Now, analyze the "Message Content to Analyze" and any attached media based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
+Now, analyze the message content and any attached media based on the server rules and ALL the context provided above.
 Follow the JSON output format specified in the system prompt.
 CRITICAL: Do NOT output anything other than the required JSON response.
 """
-        user_prompt_content_list = [{"type": "text", "text": user_prompt_text}]
+        # Add the text content first
+        user_prompt_content_list.append({
+            "type": "text",
+            "text": user_context_text
+        })
+
+        # Add images in the proper OpenRouter format
+        if image_data_list and len(image_data_list) > 0:
+            try:
+                for i, (mime_type, image_bytes, attachment_type, filename) in enumerate(image_data_list):
+                    try:
+                        # Encode image to base64
+                        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+                        # Create data URL
+                        image_data_url = f"data:{mime_type};base64,{base64_image}"
+
+                        # Add image in OpenRouter format
+                        user_prompt_content_list.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_data_url
+                            }
+                        })
+
+                        print(f"Added attachment #{i+1}: {filename} ({attachment_type}) to the prompt")
+                    except Exception as e:
+                        print(f"Error encoding image data for attachment {filename}: {e}")
+            except Exception as e:
+                print(f"Error processing image data: {e}")
+                # Add a text note about the error
+                user_prompt_content_list.append({
+                    "type": "text",
+                    "text": f"Note: There were {len(image_data_list)} attached images, but they could not be processed for analysis."
+                })
 
         # Get guild-specific model if configured, otherwise use default
         guild_id = message.guild.id
@@ -897,12 +906,16 @@ CRITICAL: Do NOT output anything other than the required JSON response.
             "HTTP-Referer": "https://discordbot.learnhelp.cc",
             "X-Title": "Discord AI Moderation Bot"
         }
+
+        # Create messages array with proper format
+        messages = [
+            {"role": "system", "content": system_prompt_text},
+            {"role": "user", "content": user_prompt_content_list}
+        ]
+
         payload = {
             "model": model_to_use,
-            "messages": [
-                {"role": "system", "content": system_prompt_text},
-                {"role": "user", "content": user_prompt_content_list}
-            ],
+            "messages": messages,
             "max_tokens": 1000, # Adjust as needed, ensure it's enough for the JSON response
             "temperature": 0.2, # Lower temperature for more deterministic moderation responses
             # Enforce JSON output if the model supports it (some models use tool/function calling)
@@ -971,7 +984,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
             print(f"An unexpected error occurred during action execution for message {message.id}: {e}")
             return None
 
-    async def handle_violation(self, message: discord.Message, ai_decision: dict):
+    async def handle_violation(self, message: discord.Message, ai_decision: dict, notify_mods_message: str = None):
         """
         Takes action based on the AI's violation decision.
         Also transmits action info via HTTP POST with API key header.
@@ -1056,6 +1069,13 @@ CRITICAL: Do NOT output anything other than the required JSON response.
                 attachment_info.append(f"{i+1}. {attachment.filename} ({attachment.content_type}) - [Link]({attachment.url})")
             attachment_text = "\n".join(attachment_info)
             notification_embed.add_field(name="Attachments", value=attachment_text[:1024], inline=False)
+
+            # Add the first image as a thumbnail if it's an image type
+            for attachment in message.attachments:
+                if any(attachment.filename.lower().endswith(ext) for ext in
+                       self.image_extensions + self.gif_extensions + self.video_extensions):
+                    notification_embed.set_thumbnail(url=attachment.url)
+                    break
         # Use the model_used variable that was defined earlier
         notification_embed.set_footer(text=f"AI Model: {model_used}. Learnhelp AI Moderation.")
         notification_embed.timestamp = discord.utils.utcnow() # Using discord.utils.utcnow() which is still supported
@@ -1162,6 +1182,8 @@ CRITICAL: Do NOT output anything other than the required JSON response.
                 print(f"Notifying moderators about potential violation (Rule {rule_violated}) by {message.author}.")
                 # NOTIFY_MODS itself isn't an infraction on the user, but a request for human review.
                 # If mods take action, they would log it manually or via a mod command.
+                if notify_mods_message:
+                    notification_embed.add_field(name="Additional Mod Message", value=notify_mods_message, inline=False)
 
             elif action == "SUICIDAL":
                 action_taken_message = "Action Taken: **User DMed resources, relevant role notified.**"
@@ -1256,9 +1278,9 @@ CRITICAL: Do NOT output anything other than the required JSON response.
         if message.author.bot:
             print(f"Ignoring message {message.id} from bot.")
             return
-        # Ignore messages without content
-        if not message.content:
-             print(f"Ignoring message {message.id} with no content.")
+        # Ignore messages without content or attachments
+        if not message.content and not message.attachments:
+             print(f"Ignoring message {message.id} with no content or attachments.")
              return
         # Ignore DMs
         if not message.guild:
@@ -1350,7 +1372,9 @@ CRITICAL: Do NOT output anything other than the required JSON response.
         # Check if the AI flagged a violation
         if ai_decision.get("violation"):
             # Handle the violation based on AI decision without overrides
-            await self.handle_violation(message, ai_decision)
+            # Pass notify_mods_message if the action is NOTIFY_MODS
+            notify_mods_message = ai_decision.get("notify_mods_message") if ai_decision.get("action") == "NOTIFY_MODS" else None
+            await self.handle_violation(message, ai_decision, notify_mods_message)
         else:
             # AI found no violation
             print(f"AI analysis complete for message {message.id}. No violation detected.")
