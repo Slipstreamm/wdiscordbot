@@ -7,6 +7,12 @@ import traceback
 import sys
 import functools
 from discord import app_commands
+import sys
+
+# Redirect stdout and stderr to a log file
+log_file_path = 'bot.log'
+sys.stdout = open(log_file_path, 'a')
+sys.stderr = open(log_file_path, 'a')
 
 # Load environment variables
 load_dotenv("/home/server/keys.env")
