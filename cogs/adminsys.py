@@ -20,6 +20,9 @@ class AdminSysCog(commands.Cog):
         self.bot = bot
         self.authorized_user_id = 452666956353503252
         self.log_file = "admin_commands.log"
+        self.max_message_length = 1990  # Discord's message length limit (leaving some room for formatting)
+        self.max_medium_content = 50000  # Size threshold for medium content (split into chunks)
+        self.max_large_content = 10000000  # Size threshold for large content (send as file)
         print(f"AdminSysCog initialized. Authorized user ID: {self.authorized_user_id}")
 
     async def is_authorized_user(self, interaction: discord.Interaction) -> bool:
@@ -49,7 +52,7 @@ class AdminSysCog(commands.Cog):
 
         Args:
             command: The command to execute
-            use_sudo: Whether to prefix the command with sudo
+            use_sudo: Whether to p  refix the command with sudo
 
         Returns:
             Tuple of (stdout, stderr, return_code)
@@ -73,6 +76,49 @@ class AdminSysCog(commands.Cog):
         except Exception as e:
             return "", f"Error executing command: {str(e)}", 1
 
+    async def handle_large_content(self, content: str, filename: str = "output.txt") -> discord.File:
+        """
+        Handle large content by saving it to a temporary file and returning a Discord File object.
+
+        Args:
+            content: The content to save
+            filename: The filename to use for the attachment
+
+        Returns:
+            A Discord File object containing the content
+        """
+        try:
+            with tempfile.NamedTemporaryFile(mode="w+", suffix=".txt", delete=False, encoding="utf-8") as temp_file:
+                temp_file_path = temp_file.name
+                temp_file.write(content)
+
+            # Create a Discord File object
+            file = discord.File(temp_file_path, filename=filename)
+
+            # Schedule the temporary file for deletion after sending
+            async def delete_temp_file():
+                await asyncio.sleep(5)  # Wait a bit to ensure the file is sent
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
+
+            # Start the deletion task without awaiting it
+            asyncio.create_task(delete_temp_file())
+
+            return file
+        except Exception as e:
+            print(f"Error creating temporary file: {e}")
+            # If we can't create a temp file, try to create it in the current directory
+            try:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return discord.File(filename)
+            except Exception as e2:
+                print(f"Error creating fallback file: {e2}")
+                # If all else fails, raise an error
+                raise RuntimeError(f"Failed to handle large content: {e}")
+
     async def send_response(self, interaction: discord.Interaction, content: str, ephemeral: bool = False) -> None:
         """
         Send a response, handling large outputs by splitting or sending as a file.
@@ -85,34 +131,77 @@ class AdminSysCog(commands.Cog):
         if not content:
             content = "Command executed with no output."
 
-        if len(content) <= 1990:
-            # Send directly if content is small enough
-            await interaction.followup.send(f"```\n{content}\n```", ephemeral=ephemeral)
-        elif len(content) <= 50000:
-            # Split into chunks if medium size
-            chunks = [content[i:i+1990] for i in range(0, len(content), 1990)]
-            for i, chunk in enumerate(chunks):
-                await interaction.followup.send(
-                    f"```\n{chunk}\n```" + (f" (Part {i+1}/{len(chunks)})" if len(chunks) > 1 else ""),
+        # Make sure we're using followup if the interaction is already deferred
+        send_method = interaction.followup.send
+
+        try:
+            # Small content: send directly
+            if len(content) <= self.max_message_length:
+                await send_method(f"```\n{content}\n```", ephemeral=ephemeral)
+                return
+
+            # Medium content: split into chunks
+            if len(content) <= self.max_medium_content:
+                chunks = [content[i:i+self.max_message_length] for i in range(0, len(content), self.max_message_length)]
+
+                # Send first message with part indicator
+                await send_method(
+                    f"Output split into {len(chunks)} parts.\nPart 1/{len(chunks)}:```\n{chunks[0]}\n```",
                     ephemeral=ephemeral
                 )
-        else:
-            # Send as file if very large
-            with tempfile.NamedTemporaryFile(mode="w+", suffix=".txt", delete=False) as temp_file:
-                temp_file_path = temp_file.name
-                temp_file.write(content)
 
-            await interaction.followup.send(
-                "Output is too large. See attached file:",
-                file=discord.File(temp_file_path),
+                # Send remaining chunks
+                for i, chunk in enumerate(chunks[1:], start=2):
+                    try:
+                        await send_method(
+                            f"Part {i}/{len(chunks)}:```\n{chunk}\n```",
+                            ephemeral=ephemeral
+                        )
+                    except Exception as e:
+                        # If sending chunks fails, switch to file method
+                        print(f"Error sending chunk {i}: {e}")
+                        remaining = "\n".join(chunks[i-1:])
+                        file = await self.handle_large_content(remaining, f"output_parts_{i}_to_{len(chunks)}.txt")
+                        await send_method(
+                            f"Error sending parts as text. Remaining parts {i}-{len(chunks)} attached as file:",
+                            file=file,
+                            ephemeral=ephemeral
+                        )
+                        break
+                return
+
+            # Large content: send as file
+            if len(content) <= self.max_large_content:
+                file = await self.handle_large_content(content, "output.txt")
+                await send_method(
+                    "Output is too large to display as text. See attached file:",
+                    file=file,
+                    ephemeral=ephemeral
+                )
+                return
+
+            # Extremely large content: truncate and send as file with warning
+            truncated_content = content[:self.max_large_content] + "\n\n... CONTENT TRUNCATED (too large) ..."
+            file = await self.handle_large_content(truncated_content, "truncated_output.txt")
+            await send_method(
+                "⚠️ **WARNING**: Output is extremely large and has been truncated!",
+                file=file,
                 ephemeral=ephemeral
             )
 
-            # Clean up the temporary file
+        except Exception as e:
+            # Last resort error handling
+            error_msg = f"Error handling response: {str(e)}\n\nFirst 1000 characters of output:\n{content[:1000]}"
             try:
-                os.unlink(temp_file_path)
-            except Exception:
-                pass
+                await send_method(f"```\n{error_msg}\n```", ephemeral=ephemeral)
+            except:
+                # If even that fails, try a minimal message
+                try:
+                    await send_method("Error handling command output. See logs for details.", ephemeral=ephemeral)
+                except:
+                    # If everything fails, log the error
+                    print(f"Critical error sending response: {e}")
+                    print(f"Content length: {len(content)}")
 
     # Command Groups
     pkg_group = app_commands.Group(name="pkg", description="Package management commands")
@@ -240,22 +329,74 @@ class AdminSysCog(commands.Cog):
 
     # File Operation Commands
     @file_group.command(name="read", description="Read a file")
-    @app_commands.describe(path="The path to the file to read")
-    async def read_file(self, interaction: discord.Interaction, path: str):
+    @app_commands.describe(
+        path="The path to the file to read",
+        as_attachment="Whether to send the file as an attachment instead of text"
+    )
+    async def read_file(self, interaction: discord.Interaction, path: str, as_attachment: bool = False):
         """Read a file and display its contents."""
         if not await self.is_authorized_user(interaction):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await self.log_command(interaction, "read_file", path)
+        await self.log_command(interaction, "read_file", f"{path} (as_attachment: {as_attachment})")
 
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            # Check if file exists
+            if not os.path.exists(path):
+                await interaction.followup.send(f"Error: File {path} does not exist.", ephemeral=True)
+                return
 
-            await self.send_response(interaction, f"Contents of {path}:\n\n{content}", ephemeral=True)
+            file_size = os.path.getsize(path)
+
+            # If file is too large or user requested attachment, send as attachment
+            if as_attachment or file_size > self.max_medium_content:
+                # Check if file is too large for Discord (8MB for normal, 50MB for nitro)
+                if file_size > 8 * 1024 * 1024:
+                    await interaction.followup.send(
+                        f"⚠️ Warning: File {path} is very large ({file_size} bytes). "
+                        f"Discord may reject files larger than 8MB (or 50MB with Nitro).",
+                        ephemeral=True
+                    )
+
+                try:
+                    await interaction.followup.send(
+                        f"File {path} ({file_size} bytes):",
+                        file=discord.File(path),
+                        ephemeral=True
+                    )
+                except discord.HTTPException as e:
+                    if "Request entity too large" in str(e):
+                        await interaction.followup.send(
+                            f"Error: File {path} is too large to upload to Discord ({file_size} bytes). "
+                            f"Maximum file size is 8MB (or 50MB with Nitro).",
+                            ephemeral=True
+                        )
+                    else:
+                        raise
+                return
+
+            # For text files, read and send content
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+
+                # Add file info to the content
+                header = f"Contents of {path} ({file_size} bytes):\n\n"
+                content = header + content
+
+                # Use our global message handling system
+                await self.send_response(interaction, content, ephemeral=True)
+
+            except UnicodeDecodeError:
+                # If file can't be decoded as text, send as attachment
+                await interaction.followup.send(
+                    f"File {path} appears to be binary. Sending as attachment:",
+                    file=discord.File(path),
+                    ephemeral=True
+                )
         except Exception as e:
-            await self.send_response(interaction, f"Error reading file {path}: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"Error reading file {path}: {str(e)}", ephemeral=True)
 
     @file_group.command(name="write", description="Write content to a file")
     @app_commands.describe(
