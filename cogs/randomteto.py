@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import aiohttp
-import io
 
 class RandomTeto(commands.Cog):
     def __init__(self, bot):
@@ -15,9 +14,8 @@ class RandomTeto(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
-                    img_bytes = await resp.read()
-                    file = discord.File(io.BytesIO(img_bytes), filename="teto.jpg")
-                    await interaction.followup.send(file=file)
+                    # Send the URL instead of the image file
+                    await interaction.followup.send(url)
                 else:
                     await interaction.followup.send("Failed to fetch image.", ephemeral=True)
 
