@@ -9,7 +9,11 @@ import py7zr
 import tempfile
 import os
 from pydub import AudioSegment
-import moviepy.editor as mp
+
+try:
+    import moviepy.editor as mp
+except ImportError:
+    print("moviepy is NOT installed in this environment")
 
 class FileConvert(commands.Cog):
     def __init__(self, bot):
