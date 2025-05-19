@@ -14,8 +14,15 @@ class RandomTeto(commands.Cog):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
-                    # Send the URL instead of the image file
-                    await interaction.followup.send(url)
+                    try:
+                        data = await resp.json()
+                        image_url = data.get("url")
+                        if image_url:
+                            await interaction.followup.send(image_url)
+                        else:
+                            await interaction.followup.send("No image URL found in response.", ephemeral=True)
+                    except Exception:
+                        await interaction.followup.send("Failed to parse server response.", ephemeral=True)
                 else:
                     await interaction.followup.send("Failed to fetch image.", ephemeral=True)
 
