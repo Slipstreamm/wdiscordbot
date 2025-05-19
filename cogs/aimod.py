@@ -15,50 +15,15 @@ import numpy as np # For array operations
 import tempfile # For temporary file operations
 
 # --- Configuration ---
-# The OpenRouter API key will be fetched from an external service
-OPENROUTER_API_KEY = None # Initialize as None
+# The OpenRouter API key will be loaded from environment variable
+OPENROUTER_API_KEY_ENV_VAR = "SLIPSTREAM_OPENROUTER_KEY"
+OPENROUTER_API_KEY = os.getenv(OPENROUTER_API_KEY_ENV_VAR)  # Load directly from environment
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "google/gemini-2.5-flash-preview" # Make sure this model is available via your OpenRouter key
 
-# URL to fetch the OpenRouter API key
-OPENROUTER_KEY_FETCH_URL = "https://slipstreamm.dev/api/openrouterkey"
-# Environment variable for the authorization secret
+# Environment variable for the authorization secret (still used for other API calls)
 MOD_LOG_API_SECRET_ENV_VAR = "MOD_LOG_API_SECRET"
-
-async def fetch_openrouter_key():
-    """Fetches the OpenRouter API key from the specified URL."""
-    print("Attempting to fetch OpenRouter API key...")
-    mod_log_api_secret = os.getenv(MOD_LOG_API_SECRET_ENV_VAR)
-    if not mod_log_api_secret:
-        print(f"Error: {MOD_LOG_API_SECRET_ENV_VAR} environment variable is not set.")
-        return None
-    print(f"MOD_LOG_API_SECRET loaded (length: {len(mod_log_api_secret) if mod_log_api_secret else 0}).")
-
-    headers = {
-        "Authorization": f"Bearer {mod_log_api_secret}"
-    }
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(OPENROUTER_KEY_FETCH_URL, headers=headers, timeout=10) as response:
-                print(f"Key fetch response status: {response.status}")
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-                api_key = await response.text()
-                print("Successfully fetched OpenRouter API key.")
-                return api_key.strip() # Remove any leading/trailing whitespace
-    except aiohttp.ClientResponseError as e:
-        print(f"Error fetching OpenRouter API key (HTTP {e.status}): {e.message}")
-        return None
-    except aiohttp.ClientError as e:
-        print(f"Error fetching OpenRouter API key (Connection/Client Error): {e}")
-        return None
-    except TimeoutError:
-        print("Error: Request to fetch OpenRouter API key timed out.")
-        return None
-    except Exception as e:
-        print(f"An unexpected error occurred while fetching OpenRouter API key: {e}")
-        return None
 
 # --- Per-Guild Discord Configuration ---
 GUILD_CONFIG_DIR = "/home/server/wdiscordbot-json-data" # Using the existing directory for all json data
@@ -204,7 +169,7 @@ You matter, and help is available.
 class ModerationCog(commands.Cog):
     """
     A Discord Cog that uses OpenRouter AI to moderate messages based on server rules.
-    Fetches API key from an external service.
+    Loads API key from the SLIPSTREAM_OPENROUTER_KEY environment variable.
     """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -212,7 +177,8 @@ class ModerationCog(commands.Cog):
         self.session = aiohttp.ClientSession()
         self.openrouter_models = []
         self.last_ai_decisions = collections.deque(maxlen=5) # Store last 5 AI decisions
-        self.openrouter_api_key = None # Will store the fetched key
+        # Initialize with the environment variable value
+        self.openrouter_api_key = OPENROUTER_API_KEY
         # Supported image file extensions
         self.image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp']
         # Supported animated file extensions
@@ -222,18 +188,21 @@ class ModerationCog(commands.Cog):
         print("ModerationCog Initialized.")
 
     async def cog_load(self):
-        """Loads OpenRouter models and fetches the API key when the cog is loaded."""
+        """Loads OpenRouter models and the API key from environment variable when the cog is loaded."""
         print("ModerationCog cog_load started.")
         self._load_openrouter_models()
-        self.openrouter_api_key = await fetch_openrouter_key()
+
+        # Load the OpenRouter API key from environment variable
+        self.openrouter_api_key = os.getenv(OPENROUTER_API_KEY_ENV_VAR)
+
         if not self.openrouter_api_key:
             print("\n" + "="*60)
-            print("=== WARNING: Failed to fetch OpenRouter API key! ===")
+            print("=== WARNING: Failed to load OpenRouter API key from environment! ===")
             print("=== The Moderation Cog requires a valid API key to function. ===")
-            print("=== Check the MOD_LOG_API_SECRET environment variable and the key fetching service. ===")
+            print(f"=== Check the {OPENROUTER_API_KEY_ENV_VAR} environment variable. ===")
             print("="*60 + "\n")
         else:
-            print("Successfully loaded OpenRouter API key via fetch.")
+            print(f"Successfully loaded OpenRouter API key from {OPENROUTER_API_KEY_ENV_VAR} environment variable.")
             print(f"OpenRouter API key loaded (length: {len(self.openrouter_api_key) if self.openrouter_api_key else 0}).")
         print("ModerationCog cog_load finished.")
 
@@ -793,7 +762,7 @@ Example Response (Notify Mods):
             perms = member.guild_permissions
             if perms.manage_messages or perms.kick_members or perms.ban_members or perms.moderate_members:
                 server_role_str = "Moderator"
-        
+
         print(f"role: {server_role_str}")
 
         # --- Fetch Replied-to Message ---
