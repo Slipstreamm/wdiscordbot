@@ -1,30 +1,28 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands
 import aiohttp
 
-class RandomTeto(commands.Cog):
+class TetoImage(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="randomtetoimage", description="Get a random teto image")
-    async def randomtetoimage(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        url = "https://slipstreamm.dev/teto"
+    @app_commands.command(name="randomtetoimage", description="Gets a random Teto image from slipstreamm.dev")
+    async def random_teto_image(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Acknowledge the interaction immediately
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    try:
-                        data = await resp.json()
-                        image_url = data.get("url")
-                        if image_url:
-                            await interaction.followup.send(image_url)
-                        else:
-                            await interaction.followup.send("No image URL found in response.", ephemeral=True)
-                    except Exception:
-                        await interaction.followup.send("Failed to parse server response.", ephemeral=True)
-                else:
-                    await interaction.followup.send("Failed to fetch image.", ephemeral=True)
+            try:
+                async with session.get("https://slipstreamm.dev/teto") as response:
+                    if response.status == 200:
+                        image_url = await response.text()
+                        await interaction.followup.send(image_url)
+                    else:
+                        await interaction.followup.send(f"Failed to fetch image. API returned status: {response.status}")
+            except aiohttp.ClientError as e:
+                await interaction.followup.send(f"An error occurred while connecting to the API: {e}")
+            except Exception as e:
+                await interaction.followup.send(f"An unexpected error occurred: {e}")
 
 async def setup(bot):
-    await bot.add_cog(RandomTeto(bot))
+    await bot.add_cog(TetoImage(bot))
