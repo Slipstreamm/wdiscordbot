@@ -8,6 +8,8 @@ import zipfile
 import py7zr
 import tempfile
 import os
+from pydub import AudioSegment
+import moviepy.editor as mp
 
 class FileConvert(commands.Cog):
     def __init__(self, bot):
@@ -27,7 +29,10 @@ class FileConvert(commands.Cog):
         dm_result: bool = False
     ):
         await interaction.response.defer(thinking=True)
-        supported_formats = ["png", "jpg", "jpeg", "ico", "json", "txt", "md", "zip", "7z"]
+        supported_formats = [
+            "png", "jpg", "jpeg", "ico", "json", "txt", "md", "zip", "7z",
+            "mp3", "wav", "mp4", "avi", "mov", "mkv", "webm", "gif"
+        ]
         target_format = target_format.lower()
         if target_format not in supported_formats:
             await interaction.followup.send(f"Unsupported target format: `{target_format}`. Supported: {', '.join(supported_formats)}")
@@ -106,6 +111,37 @@ class FileConvert(commands.Cog):
             except Exception as e:
                 await interaction.followup.send(f"Archive conversion failed: {e}")
                 return
+        # Audio conversion: mp3 <-> wav
+        elif (attachment.filename.endswith('.mp3') and target_format == "wav") or (attachment.filename.endswith('.wav') and target_format == "mp3"):
+            try:
+                audio = AudioSegment.from_file(BytesIO(file_bytes))
+                audio.export(output, format=target_format)
+                output.seek(0)
+            except Exception as e:
+                await interaction.followup.send(f"Audio conversion failed: {e}")
+                return
+        # Video conversion: mp4 to other formats
+        elif (attachment.filename.endswith('.mp4') and target_format in ["avi", "mov", "mkv", "webm", "gif"]):
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_in:
+                    tmp_in.write(file_bytes)
+                    tmp_in.flush()
+                    tmp_in_path = tmp_in.name
+                tmp_out_path = tmp_in_path.rsplit('.', 1)[0] + f".{target_format}"
+                clip = mp.VideoFileClip(tmp_in_path)
+                if target_format == "gif":
+                    clip.write_gif(tmp_out_path)
+                else:
+                    clip.write_videofile(tmp_out_path, codec="libx264", audio_codec="aac")
+                with open(tmp_out_path, "rb") as f:
+                    output.write(f.read())
+                output.seek(0)
+                clip.close()
+                os.remove(tmp_in_path)
+                os.remove(tmp_out_path)
+            except Exception as e:
+                await interaction.followup.send(f"Video conversion failed: {e}")
+                return
         else:
             await interaction.followup.send("Unsupported file type or conversion.")
             return
@@ -119,6 +155,15 @@ class FileConvert(commands.Cog):
                 await interaction.followup.send("Could not send DM. Do you have DMs disabled?", ephemeral=True)
         else:
             await interaction.followup.send("Here is your converted file:", file=file)
+
+# Required packages for your bot to support all conversions:
+# discord.py, Pillow, py7zr, pydub, moviepy
+
+# Install them with:
+# pip install discord.py Pillow py7zr pydub moviepy
+
+# For audio and video conversion, you also need ffmpeg installed on your system.
+# Download from https://ffmpdoweg.org/download.html and ensure ffmpeg is in your PATH.
 
 async def setup(bot):
     await bot.add_cog(FileConvert(bot))
