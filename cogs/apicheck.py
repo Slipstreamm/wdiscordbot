@@ -11,7 +11,9 @@ class APICheck(commands.Cog):
             "https://learnhelp.cc",
             "https://discordbot.learnhelp.cc",
             "https://api.learnhelp.cc/",
-            "http://0.0.0.0:5000/"
+            "http://0.0.0.0:5000/",
+            "https://slipstreamm.dev/teto",
+            "https://internettools.org"
         ]
 
     async def check_url(self, session, url):
