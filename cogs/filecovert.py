@@ -6,6 +6,8 @@ from PIL import Image
 import json
 import zipfile
 import py7zr
+import tempfile
+import os
 
 class FileConvert(commands.Cog):
     def __init__(self, bot):
@@ -72,28 +74,35 @@ class FileConvert(commands.Cog):
         # Archive conversion: zip <-> 7z
         elif (attachment.filename.endswith('.zip') and target_format == "7z"):
             try:
-                # Extract zip to memory
-                with zipfile.ZipFile(BytesIO(file_bytes), 'r') as zip_ref:
-                    files = {name: zip_ref.read(name) for name in zip_ref.namelist()}
-                # Write to 7z in memory
-                with py7zr.SevenZipFile(output, 'w') as archive:
-                    for name, data in files.items():
-                        archive.writestr(name, data)
-                output.seek(0)
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # Extract zip to temp dir
+                    with zipfile.ZipFile(BytesIO(file_bytes), 'r') as zip_ref:
+                        zip_ref.extractall(tmpdir)
+                    # Archive all files in temp dir to 7z
+                    with py7zr.SevenZipFile(output, 'w') as archive:
+                        for root, _, files in os.walk(tmpdir):
+                            for file in files:
+                                abs_path = os.path.join(root, file)
+                                arcname = os.path.relpath(abs_path, tmpdir)
+                                archive.write(abs_path, arcname)
+                    output.seek(0)
             except Exception as e:
                 await interaction.followup.send(f"Archive conversion failed: {e}")
                 return
         elif (attachment.filename.endswith('.7z') and target_format == "zip"):
             try:
-                # Extract 7z to memory
-                with py7zr.SevenZipFile(BytesIO(file_bytes), 'r') as archive:
-                    files = archive.readall()
-                # Write to zip in memory
-                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zip_out:
-                    for name, data in files.items():
-                        # data is a BytesIO
-                        zip_out.writestr(name, data.read())
-                output.seek(0)
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # Extract 7z to temp dir
+                    with py7zr.SevenZipFile(BytesIO(file_bytes), 'r') as archive:
+                        archive.extractall(path=tmpdir)
+                    # Archive all files in temp dir to zip
+                    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zip_out:
+                        for root, _, files in os.walk(tmpdir):
+                            for file in files:
+                                abs_path = os.path.join(root, file)
+                                arcname = os.path.relpath(abs_path, tmpdir)
+                                zip_out.write(abs_path, arcname)
+                    output.seek(0)
             except Exception as e:
                 await interaction.followup.send(f"Archive conversion failed: {e}")
                 return
