@@ -4,6 +4,8 @@ from discord.ext import commands
 from io import BytesIO
 from PIL import Image
 import json
+import zipfile
+import py7zr
 
 class FileConvert(commands.Cog):
     def __init__(self, bot):
@@ -23,7 +25,7 @@ class FileConvert(commands.Cog):
         dm_result: bool = False
     ):
         await interaction.response.defer(thinking=True)
-        supported_formats = ["png", "jpg", "jpeg", "ico", "json", "txt", "md"]
+        supported_formats = ["png", "jpg", "jpeg", "ico", "json", "txt", "md", "zip", "7z"]
         target_format = target_format.lower()
         if target_format not in supported_formats:
             await interaction.followup.send(f"Unsupported target format: `{target_format}`. Supported: {', '.join(supported_formats)}")
@@ -66,6 +68,34 @@ class FileConvert(commands.Cog):
                 output.seek(0)
             except Exception as e:
                 await interaction.followup.send(f"Text conversion failed: {e}")
+                return
+        # Archive conversion: zip <-> 7z
+        elif (attachment.filename.endswith('.zip') and target_format == "7z"):
+            try:
+                # Extract zip to memory
+                with zipfile.ZipFile(BytesIO(file_bytes), 'r') as zip_ref:
+                    files = {name: zip_ref.read(name) for name in zip_ref.namelist()}
+                # Write to 7z in memory
+                with py7zr.SevenZipFile(output, 'w') as archive:
+                    for name, data in files.items():
+                        archive.writestr(name, data)
+                output.seek(0)
+            except Exception as e:
+                await interaction.followup.send(f"Archive conversion failed: {e}")
+                return
+        elif (attachment.filename.endswith('.7z') and target_format == "zip"):
+            try:
+                # Extract 7z to memory
+                with py7zr.SevenZipFile(BytesIO(file_bytes), 'r') as archive:
+                    files = archive.readall()
+                # Write to zip in memory
+                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zip_out:
+                    for name, data in files.items():
+                        # data is a BytesIO
+                        zip_out.writestr(name, data.read())
+                output.seek(0)
+            except Exception as e:
+                await interaction.followup.send(f"Archive conversion failed: {e}")
                 return
         else:
             await interaction.followup.send("Unsupported file type or conversion.")
