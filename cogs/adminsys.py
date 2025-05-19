@@ -119,6 +119,92 @@ class AdminSysCog(commands.Cog):
                 # If all else fails, raise an error
                 raise RuntimeError(f"Failed to handle large content: {e}")
 
+    async def send_response_with_smaller_chunks(self, interaction: discord.Interaction, content: str, ephemeral: bool = False) -> None:
+        """
+        Alternative response method with smaller chunks when the standard method fails due to Discord's message size limits.
+
+        Args:
+            interaction: The interaction to respond to
+            content: The content to send
+            ephemeral: Whether the response should be ephemeral
+        """
+        send_method = interaction.followup.send
+
+        # Use a much smaller chunk size to be safe
+        very_safe_chunk_size = 1500  # Well under Discord's 2000 character limit
+        chunks = [content[i:i+very_safe_chunk_size] for i in range(0, len(content), very_safe_chunk_size)]
+
+        try:
+            # Send first message with part indicator
+            await send_method(
+                f"Output split into {len(chunks)} parts.\nPart 1/{len(chunks)}:```\n{chunks[0]}\n```",
+                ephemeral=ephemeral
+            )
+
+            # Send remaining chunks
+            for i, chunk in enumerate(chunks[1:], start=2):
+                try:
+                    await send_method(
+                        f"Part {i}/{len(chunks)}:```\n{chunk}\n```",
+                        ephemeral=ephemeral
+                    )
+                except discord.HTTPException as e:
+                    if "400 Bad Request" in str(e) and "Must be 2000 or fewer in length" in str(e):
+                        # If we still hit the limit with very small chunks, split this chunk even further
+                        quarter_size = len(chunk) // 4
+                        for j in range(4):
+                            start_idx = j * quarter_size
+                            end_idx = start_idx + quarter_size if j < 3 else len(chunk)
+                            sub_chunk = chunk[start_idx:end_idx]
+                            if sub_chunk:  # Only send if there's content
+                                try:
+                                    await send_method(
+                                        f"Part {i}/{len(chunks)} (split {j+1}/4):```\n{sub_chunk}\n```",
+                                        ephemeral=ephemeral
+                                    )
+                                except Exception as e3:
+                                    print(f"Error sending quarter chunk: {e3}")
+                                    # If even this fails, switch to file method for remaining content
+                                    remaining = content[i*very_safe_chunk_size:]
+                                    file = await self.handle_large_content(remaining, f"output_remaining.txt")
+                                    await send_method(
+                                        f"Error sending parts as text. Remaining output attached as file:",
+                                        file=file,
+                                        ephemeral=ephemeral
+                                    )
+                                    return
+                    else:
+                        # For other errors, switch to file method
+                        print(f"Error sending chunk {i}: {e}")
+                        remaining = content[(i-1)*very_safe_chunk_size:]
+                        file = await self.handle_large_content(remaining, f"output_parts_{i}_to_{len(chunks)}.txt")
+                        await send_method(
+                            f"Error sending parts as text. Remaining parts {i}-{len(chunks)} attached as file:",
+                            file=file,
+                            ephemeral=ephemeral
+                        )
+                        break
+        except Exception as e:
+            # If all else fails, try to send as a file
+            print(f"Critical error in send_response_with_smaller_chunks: {e}")
+            try:
+                file = await self.handle_large_content(content, "output_fallback.txt")
+                await send_method(
+                    "Error sending output as text. Full content attached as file:",
+                    file=file,
+                    ephemeral=ephemeral
+                )
+            except Exception as e2:
+                print(f"Failed to send file fallback: {e2}")
+                # Last resort - send minimal error message
+                try:
+                    await send_method(
+                        "Critical error handling output. Check logs for details.",
+                        ephemeral=ephemeral
+                    )
+                except:
+                    print("Complete failure in message sending system")
+
     async def send_response(self, interaction: discord.Interaction, content: str, ephemeral: bool = False) -> None:
         """
         Send a response, handling large outputs by splitting or sending as a file.
@@ -142,32 +228,67 @@ class AdminSysCog(commands.Cog):
 
             # Medium content: split into chunks
             if len(content) <= self.max_medium_content:
-                chunks = [content[i:i+self.max_message_length] for i in range(0, len(content), self.max_message_length)]
+                # Reduce chunk size to ensure we stay well under Discord's limit
+                # when adding the part indicators and code blocks
+                safe_chunk_size = self.max_message_length - 50  # Leave extra room for formatting
+                chunks = [content[i:i+safe_chunk_size] for i in range(0, len(content), safe_chunk_size)]
 
                 # Send first message with part indicator
-                await send_method(
-                    f"Output split into {len(chunks)} parts.\nPart 1/{len(chunks)}:```\n{chunks[0]}\n```",
-                    ephemeral=ephemeral
-                )
+                try:
+                    await send_method(
+                        f"Output split into {len(chunks)} parts.\nPart 1/{len(chunks)}:```\n{chunks[0]}\n```",
+                        ephemeral=ephemeral
+                    )
+                except discord.HTTPException as e:
+                    if "400 Bad Request" in str(e) and "Must be 2000 or fewer in length" in str(e):
+                        # If even with our safety margin we hit the limit, reduce chunk size further
+                        print(f"Hit Discord message limit. Reducing chunk size and retrying.")
+                        return await self.send_response_with_smaller_chunks(interaction, content, ephemeral)
+                    else:
+                        raise
 
                 # Send remaining chunks
                 for i, chunk in enumerate(chunks[1:], start=2):
                     try:
-                        await send_method(
-                            f"Part {i}/{len(chunks)}:```\n{chunk}\n```",
-                            ephemeral=ephemeral
-                        )
-                    except Exception as e:
-                        # If sending chunks fails, switch to file method
-                        print(f"Error sending chunk {i}: {e}")
-                        remaining = "\n".join(chunks[i-1:])
-                        file = await self.handle_large_content(remaining, f"output_parts_{i}_to_{len(chunks)}.txt")
-                        await send_method(
-                            f"Error sending parts as text. Remaining parts {i}-{len(chunks)} attached as file:",
-                            file=file,
-                            ephemeral=ephemeral
-                        )
-                        break
+                        message = f"Part {i}/{len(chunks)}:```\n{chunk}\n```"
+                        await send_method(message, ephemeral=ephemeral)
+                    except discord.HTTPException as e:
+                        if "400 Bad Request" in str(e) and "Must be 2000 or fewer in length" in str(e):
+                            # If we hit the limit, try to send a smaller chunk
+                            print(f"Hit Discord message limit on chunk {i}. Splitting further.")
+                            # Split this chunk in half and send separately
+                            half_size = len(chunk) // 2
+                            try:
+                                await send_method(
+                                    f"Part {i}/{len(chunks)} (split 1/2):```\n{chunk[:half_size]}\n```",
+                                    ephemeral=ephemeral
+                                )
+                                await send_method(
+                                    f"Part {i}/{len(chunks)} (split 2/2):```\n{chunk[half_size:]}\n```",
+                                    ephemeral=ephemeral
+                                )
+                            except Exception as e2:
+                                print(f"Error sending split chunk: {e2}")
+                                # If splitting fails, fall back to file method
+                                remaining = "\n".join(chunks[i-1:])
+                                file = await self.handle_large_content(remaining, f"output_parts_{i}_to_{len(chunks)}.txt")
+                                await send_method(
+                                    f"Error sending parts as text. Remaining parts {i}-{len(chunks)} attached as file:",
+                                    file=file,
+                                    ephemeral=ephemeral
+                                )
+                                break
+                        else:
+                            # For other errors, switch to file method
+                            print(f"Error sending chunk {i}: {e}")
+                            remaining = "\n".join(chunks[i-1:])
+                            file = await self.handle_large_content(remaining, f"output_parts_{i}_to_{len(chunks)}.txt")
+                            await send_method(
+                                f"Error sending parts as text. Remaining parts {i}-{len(chunks)} attached as file:",
+                                file=file,
+                                ephemeral=ephemeral
+                            )
+                            break
                 return
 
             # Large content: send as file
