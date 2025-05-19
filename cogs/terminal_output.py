@@ -9,7 +9,7 @@ class TerminalOutput(commands.Cog):
         self.log_file_path = 'bot.log'
 
     @app_commands.command(name='logs', description='Shows the bot log output (Admin only)')
-    @app_commands.has_permissions(administrator=True) # Restrict to bot owner, can change to check for admin role if needed
+    @app_commands.checks.has_permissions(administrator=True) # Restrict to bot owner, can change to check for admin role if needed
     async def show_logs(self, interaction: discord.Interaction):
         if not os.path.exists(self.log_file_path):
             await interaction.response.send_message("Log file not found.", ephemeral=True)
