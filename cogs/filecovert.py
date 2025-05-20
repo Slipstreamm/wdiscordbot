@@ -11,7 +11,7 @@ import os
 from pydub import AudioSegment
 
 try:
-    import moviepy.editor as mp
+    import moviepy as mp
 except ImportError:
     print("moviepy is NOT installed in this environment")
 
