@@ -127,6 +127,7 @@ class AICog(commands.Cog):
             "You have access to tools and may use them freely whenever you think it is helpful or interesting. "
             "You may use any available tool at your own discretion, without waiting for user requests. "
             "You can also see and analyze images sent to you, and you may use the image seeing tool to describe or interpret images. "
+            "when using the shell tool actully inclue the STDOUT of output with your response"
             "\n\n{user_memory_context}" # Placeholder for user facts
             "\n\nADDITIONAL CONTEXT PROVIDED:\n{manual_context}" # Placeholder for manual context
             "\n\nDYNAMIC LEARNING EXAMPLES:\n{dynamic_learning_context}" # Placeholder for dynamic learning
