@@ -870,7 +870,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
 
         # Structure the request payload for OpenRouter
         headers = {
-            "Authorization": f"Bearer {self.openrouter_api_key}",
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://discordbot.learnhelp.cc",
             "X-Title": "Discord AI Moderation Bot"
