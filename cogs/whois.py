@@ -12,7 +12,7 @@ class Whois(commands.Cog):
     async def whois(self, interaction: discord.Interaction, domain: str):
         await interaction.response.defer()
         try:
-            w = await self.bot.loop.run_in_executor(None, whois.whois, domain)
+            w = await self.bot.loop.run_in_executor(None, whois.query, domain)
         except Exception as e:
             await interaction.followup.send(f"Failed to fetch WHOIS info: {e}")
             return
