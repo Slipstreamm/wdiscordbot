@@ -8,6 +8,28 @@ import sys
 import functools
 from discord import app_commands
 import sys
+import io
+
+# Redirect stdout and stderr to a log file and the console
+class DualStream:
+    def __init__(self, original_stream, log_file):
+        self.original_stream = original_stream
+        self.log_file = log_file
+
+    def write(self, data):
+        self.original_stream.write(data)
+        self.log_file.write(data)
+        self.log_file.flush() # Ensure data is written to file immediately
+
+    def flush(self):
+        self.original_stream.flush()
+        self.log_file.flush()
+
+log_file = open("bot.log", "a")
+sys.stdout = DualStream(sys.stdout, log_file)
+sys.stderr = DualStream(sys.stderr, log_file)
+
+print("Logging started.")
 
 # Load environment variables
 load_dotenv("/home/server/keys.env")
@@ -268,3 +290,6 @@ if __name__ == "__main__":
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Message: {str(e)}")
         print(f"Traceback: {tb_string}")
+    finally:
+        if 'log_file' in locals() and not log_file.closed:
+            log_file.close()
