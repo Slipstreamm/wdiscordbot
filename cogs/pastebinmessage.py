@@ -4,7 +4,7 @@ from discord.ext import commands
 import aiohttp
 import re
 
-PASTEBIN_API_URL = "http://pastebin.internettools.org:3000/api/paste"
+PASTEBIN_API_URL = "http://pastebin.internettools.org/api/paste"
 
 MESSAGE_LINK_RE = re.compile(
     r"https://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)"
