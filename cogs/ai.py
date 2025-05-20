@@ -80,7 +80,7 @@ class AICog(commands.Cog):
 
         # Default configuration
         self.default_config = {
-            "model": "google/gemini-2.0-flash-001", # im broke and i have -22 credits
+            "model": "meta-llama/llama-4-maverick:free", # im broke and i have -22 credits
             "temperature": 0.75, # Slightly increased default temperature
             "max_tokens": 1500, # Increased default max tokens
             "top_p": 0.9,
