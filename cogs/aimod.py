@@ -1487,7 +1487,7 @@ Instructions:
      Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
-   - CRITICAL:You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
+   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
     - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
