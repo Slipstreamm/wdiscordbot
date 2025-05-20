@@ -817,6 +817,7 @@ class AICog(commands.Cog):
                 else:
                     print(f"No JSON object found in local LLM output: '{generated_part}'")
                     return ""
+
             else:
                 print(f"Local LLM returned no valid result or unexpected format: {llm_results}")
                 return ""
@@ -1045,10 +1046,10 @@ class AICog(commands.Cog):
             await interaction.followup.send(f"A critical error occurred processing that request. Please tell my developer! Error: {type(e).__name__}")
 
     @aimanage.command(name="config", description="Configure AI settings (Admin Only)")
-    @app_commands.describe( # Descriptions updated slightly
+    @app_commands.describe(
         model="Together AI model identifier (e.g., 'mistralai/Mixtral-8x7B-Instruct-v0.1')",
         temperature="AI creativity/randomness (0.0-2.0).",
-        max_tokens="Max response length (1-16384).", # Range updated
+        max_tokens="Max response length (1-16384).",
         top_p="Nucleus sampling probability (0.0-1.0).",
         frequency_penalty="Penalty for repeating tokens (-2.0-2.0).",
         presence_penalty="Penalty for repeating topics (-2.0-2.0)."
@@ -1062,25 +1063,47 @@ class AICog(commands.Cog):
         frequency_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None, # type: ignore
         presence_penalty: Optional[app_commands.Range[float, -2.0, 2.0]] = None # type: ignore
     ):
-         # (Implementation remains the same, using Range for validation)
-        await interaction.response.defer(ephemeral=True) 
-        if not await self.check_admin_permissions(interaction): return
-        user_id = str(interaction.user.id) # Still configures the *admin's* personal settings
-        if user_id not in self.user_configs: self.user_configs[user_id] = self.default_config.copy()
-        changes = []; current_config = self.user_configs[user_id]
+        await interaction.response.defer(ephemeral=True)
+        if not await self.check_admin_permissions(interaction):
+            return
+        user_id = str(interaction.user.id)
+        if user_id not in self.user_configs:
+            self.user_configs[user_id] = self.default_config.copy()
+        changes = []
+        current_config = self.user_configs[user_id]
         if model is not None:
-             if "/" in model and len(model) > 3: current_config["model"] = model; changes.append(f"Model: `{model}`")
-             else: await interaction.followup.send(f"Invalid model format: `{model}`."); return
-        if temperature is not None: current_config["temperature"] = temperature; changes.append(f"Temperature: `{temperature}`")
-        if max_tokens is not None: current_config["max_tokens"] = max_tokens; changes.append(f"Max Tokens: `{max_tokens}`")
-        if top_p is not None: current_config["top_p"] = top_p; changes.append(f"Top P: `{top_p}`")
-        if frequency_penalty is not None: current_config["frequency_penalty"] = frequency_penalty; changes.append(f"Frequency Penalty: `{frequency_penalty}`")
-        if presence_penalty is not None: current_config["presence_penalty"] = presence_penalty; changes.append(f"Presence Penalty: `{presence_penalty}`")
-        if not changes: await interaction.followup.send("No settings changed.", ephemeral=True); return
+            if "/" in model and len(model) > 3:
+                current_config["model"] = model
+                changes.append(f"Model: `{model}`")
+            else:
+                await interaction.followup.send(f"Invalid model format: `{model}`.")
+                return
+        if temperature is not None:
+            current_config["temperature"] = temperature
+            changes.append(f"Temperature: `{temperature}`")
+        if max_tokens is not None:
+            current_config["max_tokens"] = max_tokens
+            changes.append(f"Max Tokens: `{max_tokens}`")
+        if top_p is not None:
+            current_config["top_p"] = top_p
+            changes.append(f"Top P: `{top_p}`")
+        if frequency_penalty is not None:
+            current_config["frequency_penalty"] = frequency_penalty
+            changes.append(f"Frequency Penalty: `{frequency_penalty}`")
+        if presence_penalty is not None:
+            current_config["presence_penalty"] = presence_penalty
+            changes.append(f"Presence Penalty: `{presence_penalty}`")
+        if not changes:
+            await interaction.followup.send("No settings changed.", ephemeral=True)
+            return
         self.save_configs()
         config = self.user_configs[user_id]
-        config_message = (f"Okay~! {interaction.user.mention} updated your AI config:\n" + "\n".join([f"- {k.replace('_',' ').title()}: `{v}`" for k, v in config.items()]) + "\n\nChanges:\n- " + "\n- ".join(changes))
-        await interaction.followup.send(config_message) # Sends publicly
+        config_message = (
+            f"Okay~! {interaction.user.mention} updated your AI config:\n" +
+            "\n".join([f"- {k.replace('_',' ').title()}: `{v}`" for k, v in config.items()]) +
+            "\n\nChanges:\n- " + "\n- ".join(changes)
+        )
+        await interaction.followup.send(config_message)
 
     @aimanage.command(name="addcontext", description="Add a piece of context for the AI (Admin Only)")
     @app_commands.describe(text="The context snippet to add.")
@@ -1123,27 +1146,31 @@ class AICog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author == self.bot.user: return # Allow bot responses
-        ctx = await self.bot.get_context(message); 
+        ctx = await self.bot.get_context(message)
         if ctx.valid: return # Let command processing handle valid commands
 
         user_id = str(message.author.id)
         user_name = message.author.display_name
-        channel_id = message.channel.id if message.channel else None # Keep channel_id check for active_channels
+        channel_id = message.channel.id if message.channel else None
 
-        should_respond = False; prompt = message.content; response_prefix = ""
+        should_respond = False
+        prompt = message.content
+        response_prefix = ""
         mention_pattern = f'<@!?{self.bot.user.id}>'
-        
+
         if re.match(mention_pattern, message.content) or self.bot.user in message.mentions:
-            should_respond = True; prompt = re.sub(mention_pattern, '', message.content).strip(); prompt = prompt or "Hey Teto!"
+            should_respond = True
+            prompt = re.sub(mention_pattern, '', message.content).strip()
+            prompt = prompt or "Hey Teto!"
         elif channel_id in self.active_channels:
             should_respond = True
         elif re.search(rf'\b{re.escape(self.bot.user.name)}\b', message.content, re.IGNORECASE):
-             should_respond = True
-             if channel_id not in self.active_channels: response_prefix = f"{message.author.mention} "
-        
-        # --- Decide whether to reply or just react ---
+            should_respond = True
+            if channel_id not in self.active_channels:
+                response_prefix = f"{message.author.mention} "
+
+        # Always check every message for tool usage by invoking generate_response
         if should_respond and prompt and self.api_key:
-            # Generate and send a text reply
             async with message.channel.typing():
                 try:
                     response = await self.generate_response(user_id, user_name, prompt, source_message=message)
@@ -1152,63 +1179,22 @@ class AICog(commands.Cog):
 
                     # Split long messages
                     if len(final_response) > 2000:
-                         first_chunk = True
-                         for chunk in [final_response[i:i+1990] for i in range(0, len(final_response), 1990)]:
-                              send_func = reply_func if first_chunk else message.channel.send
-                              await send_func(chunk, suppress_embeds=True)
-                              first_chunk = False
+                        first_chunk = True
+                        for chunk in [final_response[i:i+1990] for i in range(0, len(final_response), 1990)]:
+                            send_func = reply_func if first_chunk else message.channel.send
+                            await send_func(chunk, suppress_embeds=True)
+                            first_chunk = False
                     else:
-                         await reply_func(final_response, suppress_embeds=True)
+                        await reply_func(final_response, suppress_embeds=True)
 
                 except Exception as e:
                     print(f"Error during on_message generation/sending: {e}")
-                    # Maybe add a cooldown to sending error messages in chat
-                    # await message.channel.send("Oops, Teto brain freeze! 🧠❄️ Try again?")
-        elif not should_respond and self.api_key: # Only react if not already replying
-            reaction_chance = 0.05 # 5% chance to initiate reaction process
-            
-            if random.random() < reaction_chance:
-                chosen_emoji_to_react = ""
-
-                # Try to get emoji from local LLM
-                if self.reaction_pipeline:
-                    suggested_emoji_from_llm = await self.get_local_reaction_emoji_suggestion(prompt) # Use original prompt
-                    if suggested_emoji_from_llm: # If LLM provided a specific emoji
-                        chosen_emoji_to_react = suggested_emoji_from_llm
-                
-                # Fallback if LLM didn't provide an emoji (or LLM not available)
-                if not chosen_emoji_to_react:
-                    teto_emojis = ['🍞', '🥖', '✨', '💖', '🎤', '🎶', '😊', '😄', '😉', '😋', '🎉', '👍'] # Removed custom for simplicity now
-                    # Add custom emojis if they are verified to be accessible by the bot
-                    # Example: custom_emoji_id = 123456789012345678
-                    # if self.bot.get_emoji(custom_emoji_id):
-                    # teto_emojis.append(str(self.bot.get_emoji(custom_emoji_id)))
-                    
-                    # Filter out custom emojis the bot might not have access to (if any were added as strings)
-                    valid_emojis = []
-                    for emoji_str in teto_emojis:
-                        if isinstance(emoji_str, str) and emoji_str: # Standard unicode emoji
-                            valid_emojis.append(emoji_str)
-                        # else: # Could add check for custom emoji availability if needed (complex for this spot)
-                        #    pass
-                    if valid_emojis:
-                        chosen_emoji_to_react = random.choice(valid_emojis)
-
-                # Add the chosen reaction if one was determined
-                if chosen_emoji_to_react:
-                    try:
-                        await message.add_reaction(chosen_emoji_to_react)
-                    except discord.Forbidden:
-                        pass # Ignore if missing reaction permissions
-                    except discord.HTTPException as e:
-                        # Catch specific error for "Unknown Emoji"
-                        if e.code == 10014: # Discord API error code for Unknown Emoji
-                            print(f"Failed to add reaction: Unknown Emoji '{chosen_emoji_to_react}'. LLM might have hallucinated an invalid emoji.")
-                        else:
-                            print(f"Failed to add reaction '{chosen_emoji_to_react}': {e}") # Log other HTTP errors
-            # ---------------------------------
-
-    # -------------------------
+        elif self.api_key:
+            # For all other messages, still check with the AI for possible tool usage (no reply to user if not needed)
+            try:
+                _ = await self.generate_response(user_id, user_name, message.content, source_message=message)
+            except Exception as e:
+                print(f"Error during background tool check: {e}")
 
 # --- Setup Function (Checks remain the same) ---
 async def setup(bot: commands.Bot):
