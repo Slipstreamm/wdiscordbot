@@ -942,8 +942,9 @@ class AICog(commands.Cog):
             max_output_len = 1500 # Adjust as needed for Discord message limits
             if len(output) > max_output_len:
                 output = output[:max_output_len - 3] + "..."
-            
-            return output
+
+            # Wrap output in a Markdown code block
+            return f"```\n{output}\n```"
 
         except asyncio.TimeoutError:
             # Ensure process is terminated if it times out
@@ -955,11 +956,11 @@ class AICog(commands.Cog):
                     pass # Process already finished
                 except Exception as term_err:
                      print(f"Error terminating timed-out process: {term_err}")
-            return "Command timed out after 10 seconds."
+            return "```\nCommand timed out after 10 seconds.\n```"
         except FileNotFoundError:
-             return f"Error: Command not found or invalid command: '{command.split()[0]}'"
+             return f"```\nError: Command not found or invalid command: '{command.split()[0]}'\n```"
         except Exception as e:
-            return f"Error running command: {str(e)}"
+            return f"```\nError running command: {str(e)}\n```"
 
     # --- Other Methods (timeout_user, search_internet, check_admin_permissions - Unchanged) ---
     async def timeout_user(self, guild_id: int, user_id: int, minutes: int) -> bool:
