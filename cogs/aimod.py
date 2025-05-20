@@ -20,7 +20,7 @@ OPENROUTER_API_KEY_ENV_VAR = "SLIPSTREAM_OPENROUTER_KEY"
 OPENROUTER_API_KEY = os.getenv(OPENROUTER_API_KEY_ENV_VAR)  # Load directly from environment
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "google/gemini-2.5-flash-preview" # Make sure this model is available via your OpenRouter key
+OPENROUTER_MODEL = "google/gemini-2.5-flash-preview-05-20" # Make sure this model is available via your OpenRouter key
 
 # Environment variable for the authorization secret (still used for other API calls)
 MOD_LOG_API_SECRET_ENV_VAR = "MOD_LOG_API_SECRET"
@@ -116,9 +116,8 @@ SERVER_RULES = """
 # Server Rules
 
 * **NSFW Content:**
-Keep all NSFW (Not Safe For Work) content strictly within designated NSFW channels.
-Do not post pornographic or overtly explicit images or media outside of these areas.
-(Explicit emojis, jokes, and stickers are generally fine in other channels).
+Keep all overly explicit NSFW (Not Safe For Work) content strictly within designated NSFW channels.
+(Explicit emojis, jokes, and stickers ARE fine in other channels).
 
 * **Real-Life Pornography:** No real-life pornography is permitted.
 
