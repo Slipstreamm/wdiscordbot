@@ -33,11 +33,11 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="download_vscode_windows", description="Get the Visual Studio Code installer for Windows (ARM64)")
+    @app_commands.command(name="download_vscode_windows", description="Get the Visual Studio Code installer for Windows.")
     async def download_vscode_windows(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="Download Visual Studio Code for Windows (ARM64)",
-            description="[Click here to download VS Code for Windows (ARM64)](https://code.visualstudio.com/sha/download?build=stable&os=win32-arm64-user)",
+            title="Download Visual Studio Code for Windows.",
+            description="[Click here to download VS Code for Windows.](https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user)",
             color=discord.Color.purple()
         )
         await interaction.response.send_message(embed=embed)
