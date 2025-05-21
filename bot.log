@@ -1,0 +1,5 @@
+Logging started.
+Traceback (most recent call last):
+  File "Z:\projects_git\wdiscordbotserver\bot.py", line 40, in <module>
+    raise ValueError("Missing DISCORD_TOKEN environment variable.")
+ValueError: Missing DISCORD_TOKEN environment variable.
