@@ -6,7 +6,9 @@ class Download(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="open_otp", description="Get the OpenOTP installer link")
+    download = app_commands.Group(name="download", description="Download useful files")
+
+    @download.command(name="open_otp", description="Get the OpenOTP installer link")
     async def open_otp(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download OpenOTP Installer",
@@ -15,7 +17,7 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="archlinux", description="Get the Arch Linux ISO link")
+    @download.command(name="archlinux", description="Get the Arch Linux ISO link")
     async def archlinux(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download Arch Linux ISO",
@@ -24,7 +26,7 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="ubuntu", description="Get the Ubuntu mirror link")
+    @download.command(name="ubuntu", description="Get the Ubuntu mirror link")
     async def ubuntu(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download Ubuntu (Mirror)",
@@ -33,7 +35,7 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="vscode_windows", description="Get the Visual Studio Code installer for Windows (ARM64)")
+    @download.command(name="vscode_windows", description="Get the Visual Studio Code installer for Windows (ARM64)")
     async def vscode_windows(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download Visual Studio Code for Windows (ARM64)",
@@ -42,7 +44,7 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="vscode_mac", description="Get the Visual Studio Code installer for Mac (Universal)")
+    @download.command(name="vscode_mac", description="Get the Visual Studio Code installer for Mac (Universal)")
     async def vscode_mac(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download Visual Studio Code for Mac (Universal)",
@@ -51,17 +53,8 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
-    @app_commands.group(name="download", description="Download useful files")
-    async def download(self, interaction: discord.Interaction):
-        # This is just the group command, not directly callable
-        pass
-
-    download.add_command(open_otp)
-    download.add_command(archlinux)
-    download.add_command(ubuntu)
-    download.add_command(vscode_windows)
-    download.add_command(vscode_mac)
+    async def cog_load(self):
+        self.bot.tree.add_command(self.download)
 
 async def setup(bot):
     await bot.add_cog(Download(bot))
