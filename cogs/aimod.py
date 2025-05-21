@@ -20,7 +20,7 @@ OPENROUTER_API_KEY_ENV_VAR = "SLIPSTREAM_OPENROUTER_KEY"
 OPENROUTER_API_KEY = os.getenv(OPENROUTER_API_KEY_ENV_VAR)  # Load directly from environment
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "google/gemini-2.5-flash-preview" # Make sure this model is available via your OpenRouter key
+OPENROUTER_MODEL = "google/gemini-2.5-flash-preview-05-20" # Make sure this model is available via your OpenRouter key
 
 # Environment variable for the authorization secret (still used for other API calls)
 MOD_LOG_API_SECRET_ENV_VAR = "MOD_LOG_API_SECRET"
@@ -116,9 +116,9 @@ SERVER_RULES = """
 # Server Rules
 
 * **NSFW Content:**
-Keep all NSFW (Not Safe For Work) content strictly within designated NSFW channels.
-Do not post pornographic or overtly explicit images or media outside of these areas.
-(Explicit emojis, jokes, and stickers are generally fine in other channels).
+The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**.
+Full-on pornographic images are permitted in designated NSFW channels.
+Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
 
 * **Real-Life Pornography:** No real-life pornography is permitted.
 
@@ -666,9 +666,10 @@ Instructions:
    - Pay special attention to images that may contain NSFW content, pornography, gore, or other prohibited visual content.
    - If multiple attachments are present, a violation in ANY of them should be flagged.
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
-   - For Rule 1 (NSFW content):
-     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, literally any kind of sexual content is allowed, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
-     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
+* **NSFW Content:**
+The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**.
+Full-on pornographic images are permitted in designated NSFW channels.
+Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
@@ -870,7 +871,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
 
         # Structure the request payload for OpenRouter
         headers = {
-            "Authorization": f"Bearer {self.openrouter_api_key}",
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://discordbot.learnhelp.cc",
             "X-Title": "Discord AI Moderation Bot"
@@ -1424,15 +1425,39 @@ if __name__ == "__main__":
     SERVER_RULES = """
 # Server Rules
 
-- Keep NSFW stuff in NSFW channels. No full-on porn or explicit images outside of those spaces. Emojis, jokes and stickers are fine
-- No real life pornography.
-- Be respectful. No harassment, hate, or bullying, unless its clearly a lighthearted joke.
-- No discrimination. This includes gender identity, sexual orientation, race, etc.
-- No AI-generated porn.
-- No pedophilia. This includes lolicon/shotacon.
-- Suggestions are welcome! Drop them in <#1361752490210492489> if you've got any ideas.
+* **NSFW Content:**
+The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**, and you may **only post full-on pornographic images in designated NSFW channels**.
+Explicit stickers and emojis are NOT considered "full-on pornographic images" and are always allowed in any channel.
 
-If someone breaks the rules, ping <@&1361031007536549979>;
+* **Real-Life Pornography:** No real-life pornography is permitted.
+
+* **Respectful Conduct & Edgy Humor:**
+    * No harassment, hate speech (as defined by attacking protected groups), or genuine bullying.
+    * *Context is key:* Edgy humor, dark jokes, and roasting are permitted and expected.
+    * However, this does not excuse targeted, malicious personal attacks or harassment, especially if the recipient is clearly not okay with it.
+    * If it stops being a "joke" and becomes genuine harassment, it's a rule violation.
+
+* **No Discrimination:** Discrimination based on race, gender identity, sexual orientation, religion, nationality, disability, or other protected characteristics is prohibited.
+
+* **AI-Generated Pornography:** Do not post AI-generated pornography.
+
+* **Zero Tolerance for Pedophilia:** Any form of pedophilia, including lolicon and shotacon content, is strictly forbidden and will result in an immediate ban.
+
+* **Channel Usage:** Please use channels for their intended purposes. Bot commands should primarily be used in `#bot-commands`, unless they are part of a bot-based game or event happening in another specific channel.
+
+* **Gore:** Do not post gore or graphic real-life violence.
+
+* **Suggestions:** We welcome your suggestions for the server! Please post them in the `#suggestions` channel.
+
+---
+
+**Reporting Violations:**
+If you witness someone breaking these rules, please ping an `@Moderator` with details.
+
+---
+
+**Moderator Applications:**
+Use the bot command `/modapp apply`
 """
 
     system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
@@ -1458,10 +1483,11 @@ Instructions:
    - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
 2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
    - For Rule 1 (NSFW content):
-     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `true`, more explicit content is generally permissible, but still subject to other rules like Rule 2 (No IRL Porn) and Rule 5 (No Pedophilia).
-     - If "Channel Age-Restricted/NSFW (Discord Setting)" is `false`, Rule 1 applies strictly: "No full-on porn or explicit images outside of those spaces." However, "Emojis, jokes and stickers are fine." Only flag a Rule 1 violation for text if it's **explicitly pornographic text that would qualify as actual pornography if written out**, not just suggestive emojis, stickers, or dark/sexual jokes, especially if conversational context supports a joking intent.
+     The only rules regarding NSFW content is that **real-life pornography is strictly prohibited**, and Full-on pornographic images are only permitted in designated NSFW channels.
+     Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
+   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
     - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
