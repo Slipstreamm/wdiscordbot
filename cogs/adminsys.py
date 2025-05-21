@@ -11,23 +11,20 @@ import shutil
 from typing import Optional, List, Tuple
 
 class AdminSysCog(commands.Cog):
-    """
-    System administration cog with elevated privileges.
-    Restricted to a specific user ID for security.
-    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.authorized_user_id = 452666956353503252
+        # Support multiple authorized user IDs
+        self.authorized_user_ids = {452666956353503252, 1146391317295935570, 1141746562922459136}  # Add more user IDs as needed
         self.log_file = "admin_commands.log"
         self.max_message_length = 1990  # Discord's message length limit (leaving some room for formatting)
         self.max_medium_content = 50000  # Size threshold for medium content (split into chunks)
         self.max_large_content = 10000000  # Size threshold for large content (send as file)
-        print(f"AdminSysCog initialized. Authorized user ID: {self.authorized_user_id}")
+        print(f"AdminSysCog initialized. Authorized user IDs: {self.authorized_user_ids}")
 
     async def is_authorized_user(self, interaction: discord.Interaction) -> bool:
         """Check if the user is authorized to use admin commands."""
-        if interaction.user.id != self.authorized_user_id:
+        if interaction.user.id not in self.authorized_user_ids:
             await interaction.response.send_message(
                 "You are not authorized to use this command.",
                 ephemeral=True
