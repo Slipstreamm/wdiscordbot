@@ -19,7 +19,7 @@ class Download(commands.Cog):
     async def download_archlinux(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Download Arch Linux ISO",
-            description="[Click here to download Arch Linux 2025.05.01 ISO](https://ftpmirror.infania.net/mirror/archlinux/iso/2025.05.01/)",
+            description="[Click here to download Arch Linux 2025.05.01 ISO](https://ftpmirror.infania.net/mirror/archlinux/iso/2025.05.01/archlinux-2025.05.01-x86_64.iso)",
             color=discord.Color.green()
         )
         await interaction.response.send_message(embed=embed)
