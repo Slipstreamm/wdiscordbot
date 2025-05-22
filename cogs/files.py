@@ -51,5 +51,14 @@ class Download(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="download_windows_redist", description="Get the Windows Redist All-in-One package")
+    async def download_windows_redist(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="Download Windows Redist All-in-One",
+            description="[Click here to download windows_redist_allinone.zip](https://filehost.internettools.org/windows_redist_allinone.zip)",
+            color=discord.Color.teal()
+        )
+        await interaction.response.send_message(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(Download(bot))
