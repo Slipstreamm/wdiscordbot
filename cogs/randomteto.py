@@ -100,5 +100,14 @@ class TetoImage(commands.Cog):
         view.message_id = msg.id
         self.history[msg.id] = (image_urls, current_index)
 
+    @app_commands.command(name="download_kasanetetoimagebrowser", description="Get the KasaneTetoimageBrowser Setup executable")
+    async def download_kasanetetobrowser(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="Download KasaneTetoimageBrowser Setup",
+            description="[Click here to download KasaneTetoimageBrowser_Setup.exe](https://filehost.internettools.org/KasaneTetoBrowser_Setup.exe)",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(TetoImage(bot))
