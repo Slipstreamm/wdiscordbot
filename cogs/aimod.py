@@ -116,9 +116,8 @@ SERVER_RULES = """
 # Server Rules
 
 * **NSFW Content:**
-The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**.
-Full-on pornographic images are permitted in designated NSFW channels.
-Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
+The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**, and you may **only post full-on pornographic images in designated NSFW channels**.
+Explicit stickers and emojis are NOT considered "full-on pornographic images" and are always allowed in any channel.
 
 * **Real-Life Pornography:** No real-life pornography is permitted.
 
@@ -672,13 +671,13 @@ Full-on pornographic images are permitted in designated NSFW channels.
 Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
    - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
    - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
+   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
 After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
 3. Respond ONLY with a single JSON object containing the following keys:
     - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
     - "violation": boolean (true if any rule is violated, false otherwise)
     - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
     - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
-    - "notify_mods_message": optional string (If the suggested action is "NOTIFY_MODS", provide an optional brief message here for the moderators, e.g., "User's message is slightly ambiguous, human review needed.").
        Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
        Progressive Discipline Guide (unless overridden by severity):
          - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
@@ -701,7 +700,7 @@ After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5
        Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
        The system will handle the exact timeout duration; you just suggest the category.)
 
-Example Response (Text Violation):
+Example Response (Violation):
 {{
   "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
   "violation": true,
@@ -709,25 +708,9 @@ Example Response (Text Violation):
   "action": "BAN"
 }}
 
-Example Response (Image Violation):
-{{
-  "reasoning": "Attachment #2 contains explicit pornographic imagery in a non-NSFW channel, violating rule 1.",
-  "violation": true,
-  "rule_violated": "1",
-  "action": "DELETE"
-}}
-
-Example Response (Multiple Attachments Violation):
-{{
-  "reasoning": "While the text content is fine, attachment #3 contains AI-generated pornography, violating rule 4.",
-  "violation": true,
-  "rule_violated": "4",
-  "action": "WARN"
-}}
-
 Example Response (No Violation):
 {{
-  "reasoning": "The message and all attached images are respectful and contain no prohibited content.",
+  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
   "violation": false,
   "rule_violated": "None",
   "action": "IGNORE"
@@ -740,219 +723,202 @@ Example Response (Suicidal Content):
   "rule_violated": "Suicidal Content",
   "action": "SUICIDAL"
 }}
+"""
 
-Example Response (Notify Mods):
+    system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
+Your primary function is to analyze message content and attached media based STRICTLY on the server rules provided below, using all available context.
+
+Server Rules:
+---
+{SERVER_RULES}
+---
+
+Context Provided:
+You will receive the following information to aid your analysis:
+- User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
+- Channel Category: The name of the category the channel belongs to.
+- Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
+- Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
+- Recent Channel History: The last few messages in the channel to understand the flow of conversation.
+
+Instructions:
+1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
+   - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
+   - The "Channel Category" provides general context.
+   - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
+2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
+   - For Rule 1 (NSFW content):
+     The only rules regarding NSFW content is that **real-life pornography is strictly prohibited**, and Full-on pornographic images are only permitted in designated NSFW channels.
+     Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
+   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
+   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
+   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
+After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
+3. Respond ONLY with a single JSON object containing the following keys:
+    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
+    - "violation": boolean (true if any rule is violated, false otherwise)
+    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
+    - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
+       Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
+       Progressive Discipline Guide (unless overridden by severity):
+         - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
+         - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
+         - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
+         - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
+       Spamming:
+         - If a user continuously sends very long messages that are off-topic, repetitive, or appear to be meaningless spam (e.g., character floods, nonsensical text), suggest "TIMEOUT_MEDIUM" or "TIMEOUT_LONG" depending on severity and history, even if the content itself doesn't violate other specific rules. This is to maintain chat readability.
+       Rule Severity Guidelines (use your judgment):
+         - Consider the severity of each rule violation on its own merits.
+         - Consider the user's history of past infractions when determining appropriate action.
+         - Consider the context of the message and channel when evaluating violations.
+         - You have full discretion to determine the most appropriate action for any violation.
+       Suicidal Content:
+         If the message content expresses **clear, direct, and serious suicidal ideation, intent, planning, or recent attempts** (e.g., 'I am going to end my life and have a plan', 'I survived my attempt last night', 'I wish I hadn't woken up after trying'), ALWAYS use "SUICIDAL" as the action, and set "violation" to true, with "rule_violated" as "Suicidal Content".
+         For casual, edgy, hyperbolic, or ambiguous statements like 'imma kms', 'just kill me now', 'I want to die (lol)', or phrases that are clearly part of edgy humor/banter rather than a genuine cry for help, you should lean towards "IGNORE" or "NOTIFY_MODS" if there's slight ambiguity but no clear serious intent. **Do NOT flag 'imma kms' as "SUICIDAL" unless there is very strong supporting context indicating genuine, immediate, and serious intent.**
+       If unsure but suspicious, or if the situation is complex: "NOTIFY_MODS".
+       Default action for minor first-time rule violations should be "WARN" or "DELETE" (if applicable).
+       Do not suggest "KICK" or "BAN" lightly; reserve for severe or repeated major offenses.
+       Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
+       The system will handle the exact timeout duration; you just suggest the category.)
+
+Example Response (Violation):
 {{
-  "reasoning": "The message contains potentially sensitive content that requires human review.",
+  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
   "violation": true,
-  "rule_violated": "Review Required",
-  "action": "NOTIFY_MODS",
-  "notify_mods_message": "Content is borderline, please review."
+  "rule_violated": "5A",
+  "action": "BAN"
 }}
 
+Example Response (No Violation):
+{{
+  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
+  "violation": false,
+  "rule_violated": "None",
+  "action": "IGNORE"
+}}
+
+Example Response (Suicidal Content):
+{{
+  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
+  "violation": true,
+  "rule_violated": "Suicidal Content",
+  "action": "SUICIDAL"
+}}
 """
 
-        member = message.author # This is a discord.Member object
-        server_role_str = "Unprivileged Member" # Default
+    async def query_openrouter(self, message: discord.Message, message_content: str, user_history: str, image_data_list=None):
+        """
+        Sends the message content, user history, and additional context to the OpenRouter API for analysis.
+        Optionally includes image data for visual content moderation.
 
-        if member == await message.guild.fetch_member(message.guild.owner_id):
-            server_role_str = "Server Owner"
-        elif member.guild_permissions.administrator:
-            server_role_str = "Admin"
-        else:
-            perms = member.guild_permissions
-            if perms.manage_messages or perms.kick_members or perms.ban_members or perms.moderate_members:
-                server_role_str = "Moderator"
+        Args:
+            message: The original discord.Message object.
+            message_content: The text content of the message.
+            user_history: A string summarizing the user's past infractions.
+            image_data_list: Optional list of tuples (mime_type, image_bytes, attachment_type, filename) for image moderation.
 
-        print(f"role: {server_role_str}")
+        Returns:
+            A dictionary containing the AI's decision, or None if an error occurs.
+            Expected format:
+            {
+              "reasoning": str,
+              "violation": bool,
+              "rule_violated": str ("None", "1", "5A", etc.),
+              "action": str ("IGNORE", "WARN", "DELETE", "BAN", "NOTIFY_MODS")
+            }
+        """
+        print(f"query_openrouter called. API key available: {self.openrouter_api_key is not None}")
+        # Check if the API key was successfully fetched
+        if not self.openrouter_api_key:
+            print("Error: OpenRouter API Key is not available. Cannot query API.")
+            return None
 
-        # --- Fetch Replied-to Message ---
-        replied_to_message_content = "N/A (Not a reply)"
-        if message.reference and message.reference.message_id:
-            try:
-                replied_to_msg = await message.channel.fetch_message(message.reference.message_id)
-                replied_to_message_content = f"User '{replied_to_msg.author.name}' said: \"{replied_to_msg.content[:200]}\""
-                if len(replied_to_msg.content) > 200:
-                    replied_to_message_content += "..."
-            except discord.NotFound:
-                replied_to_message_content = "N/A (Replied-to message not found)"
-            except discord.Forbidden:
-                replied_to_message_content = "N/A (Cannot fetch replied-to message - permissions)"
-            except Exception as e:
-                replied_to_message_content = f"N/A (Error fetching replied-to message: {e})"
+        # Construct the prompt for the AI model
+        system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
+Your primary function is to analyze message content and attached media based STRICTLY on the server rules provided below, using all available context.
 
-        # --- Fetch Recent Channel History ---
-        recent_channel_history_str = "N/A (Could not fetch history)"
-        try:
-            history_messages = []
-            # Fetch last 11 messages (current + 10 previous). We'll filter out the current one
-            async for prev_msg in message.channel.history(limit=11, before=message):
-                if prev_msg.id != message.id: # Ensure we don't include the current message itself
-                    author_name = prev_msg.author.name + " (BOT)" if prev_msg.author.bot else prev_msg.author.name
-                    history_messages.append(f"- {author_name}: \"{prev_msg.content[:150]}{'...' if len(prev_msg.content) > 150 else ''}\" (ID: {prev_msg.id})")
-            if history_messages:
-                # Reverse to show oldest first in the snippet, then take the last 10.
-                recent_channel_history_str = "\n".join(list(reversed(history_messages))[:10])
-            else:
-                recent_channel_history_str = "No recent messages before this one in the channel."
-        except discord.Forbidden:
-            recent_channel_history_str = "N/A (Cannot fetch channel history - permissions)"
-        except Exception as e:
-            recent_channel_history_str = f"N/A (Error fetching channel history: {e})"
-
-
-        # Prepare user prompt content list with proper OpenRouter format
-        user_prompt_content_list = []
-
-        # Add the text context first
-        user_context_text = f"""User Infraction History (for {message.author.name}, ID: {message.author.id}):
+Server Rules:
 ---
-{user_history if user_history else "No prior infractions recorded for this user in this guild."}
+{SERVER_RULES}
 ---
 
-Current Message Context:
-- Author: {message.author.name} (ID: {message.author.id})
-- Server Role: {server_role_str}
-- Channel: #{message.channel.name} (ID: {message.channel.id})
-- Channel Category: {message.channel.category.name if message.channel.category else "No Category"}
-- Channel Age-Restricted/NSFW (Discord Setting): {message.channel.is_nsfw()}
----
-Replied-to Message:
-{replied_to_message_content}
----
-Recent Channel History (last up to 10 messages before this one):
-{recent_channel_history_str}
----
-Message Content to Analyze:
-"{message_content}"
+Context Provided:
+You will receive the following information to aid your analysis:
+- User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
+- Channel Category: The name of the category the channel belongs to.
+- Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
+- Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
+- Recent Channel History: The last few messages in the channel to understand the flow of conversation.
+- Attached Media: If the message contains image, GIF, or video attachments, they will be provided as image_url objects in the content array. For GIFs and videos, only the first frame is extracted.
 
-Now, analyze the message content and any attached media based on the server rules and ALL the context provided above.
-Follow the JSON output format specified in the system prompt.
-CRITICAL: Do NOT output anything other than the required JSON response.
+Instructions:
+1. Review the "Message Content" and any attached media against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
+   - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
+   - The "Channel Category" provides general context.
+   - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
+   - If images, GIFs, or videos are attached, analyze ALL of them for rule violations. For GIFs and videos, only the first frame is provided.
+   - Pay special attention to images that may contain NSFW content, pornography, gore, or other prohibited visual content.
+   - If multiple attachments are present, a violation in ANY of them should be flagged.
+2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
+* **NSFW Content:**
+The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**.
+Full-on pornographic images are permitted in designated NSFW channels.
+Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
+   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
+   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
+   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
+After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
+3. Respond ONLY with a single JSON object containing the following keys:
+    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
+    - "violation": boolean (true if any rule is violated, false otherwise)
+    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
+    - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
+       Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
+       Progressive Discipline Guide (unless overridden by severity):
+         - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
+         - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
+         - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
+         - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
+       Spamming:
+         - If a user continuously sends very long messages that are off-topic, repetitive, or appear to be meaningless spam (e.g., character floods, nonsensical text), suggest "TIMEOUT_MEDIUM" or "TIMEOUT_LONG" depending on severity and history, even if the content itself doesn't violate other specific rules. This is to maintain chat readability.
+       Rule Severity Guidelines (use your judgment):
+         - Consider the severity of each rule violation on its own merits.
+         - Consider the user's history of past infractions when determining appropriate action.
+         - Consider the context of the message and channel when evaluating violations.
+         - You have full discretion to determine the most appropriate action for any violation.
+       Suicidal Content:
+         If the message content expresses **clear, direct, and serious suicidal ideation, intent, planning, or recent attempts** (e.g., 'I am going to end my life and have a plan', 'I survived my attempt last night', 'I wish I hadn't woken up after trying'), ALWAYS use "SUICIDAL" as the action, and set "violation" to true, with "rule_violated" as "Suicidal Content".
+         For casual, edgy, hyperbolic, or ambiguous statements like 'imma kms', 'just kill me now', 'I want to die (lol)', or phrases that are clearly part of edgy humor/banter rather than a genuine cry for help, you should lean towards "IGNORE" or "NOTIFY_MODS" if there's slight ambiguity but no clear serious intent. **Do NOT flag 'imma kms' as "SUICIDAL" unless there is very strong supporting context indicating genuine, immediate, and serious intent.**
+       If unsure but suspicious, or if the situation is complex: "NOTIFY_MODS".
+       Default action for minor first-time rule violations should be "WARN" or "DELETE" (if applicable).
+       Do not suggest "KICK" or "BAN" lightly; reserve for severe or repeated major offenses.
+       Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
+       The system will handle the exact timeout duration; you just suggest the category.)
+
+Example Response (Violation):
+{{
+  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
+  "violation": true,
+  "rule_violated": "5A",
+  "action": "BAN"
+}}
+
+Example Response (No Violation):
+{{
+  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
+  "violation": false,
+  "rule_violated": "None",
+  "action": "IGNORE"
+}}
+
+Example Response (Suicidal Content):
+{{
+  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
+  "violation": true,
+  "rule_violated": "Suicidal Content",
+  "action": "SUICIDAL"
+}}
 """
-        # Add the text content first
-        user_prompt_content_list.append({
-            "type": "text",
-            "text": user_context_text
-        })
-
-        # Add images in the proper OpenRouter format
-        if image_data_list and len(image_data_list) > 0:
-            try:
-                for i, (mime_type, image_bytes, attachment_type, filename) in enumerate(image_data_list):
-                    try:
-                        # Encode image to base64
-                        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-                        # Create data URL
-                        image_data_url = f"data:{mime_type};base64,{base64_image}"
-
-                        # Add image in OpenRouter format
-                        user_prompt_content_list.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image_data_url
-                            }
-                        })
-
-                        print(f"Added attachment #{i+1}: {filename} ({attachment_type}) to the prompt")
-                    except Exception as e:
-                        print(f"Error encoding image data for attachment {filename}: {e}")
-            except Exception as e:
-                print(f"Error processing image data: {e}")
-                # Add a text note about the error
-                user_prompt_content_list.append({
-                    "type": "text",
-                    "text": f"Note: There were {len(image_data_list)} attached images, but they could not be processed for analysis."
-                })
-
-        # Get guild-specific model if configured, otherwise use default
-        guild_id = message.guild.id
-        model_to_use = get_guild_config(guild_id, "AI_MODEL", OPENROUTER_MODEL)
-
-        # Structure the request payload for OpenRouter
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://discordbot.learnhelp.cc",
-            "X-Title": "Discord AI Moderation Bot"
-        }
-
-        # Create messages array with proper format
-        messages = [
-            {"role": "system", "content": system_prompt_text},
-            {"role": "user", "content": user_prompt_content_list}
-        ]
-
-        payload = {
-            "model": model_to_use,
-            "messages": messages,
-            "max_tokens": 1000, # Adjust as needed, ensure it's enough for the JSON response
-            "temperature": 0.2, # Lower temperature for more deterministic moderation responses
-            # Enforce JSON output if the model supports it (some models use tool/function calling)
-            # "response_format": {"type": "json_object"} # Uncomment if model supports this parameter
-        }
-
-        try:
-            print(f"Querying OpenRouter model {model_to_use}...")
-            async with self.session.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=60) as response: # Added timeout
-                response_text = await response.text() # Get raw text for debugging
-                # print(f"OpenRouter Raw Response Status: {response.status}")
-                # print(f"OpenRouter Raw Response Body: {response_text[:1000]}...") # Print first 1000 chars
-
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-
-                result = await response.json()
-                ai_response_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-
-                if not ai_response_content:
-                    print("Error: AI response content is empty.")
-                    return None
-
-                # Attempt to parse the JSON response from the AI
-                try:
-                    # Clean potential markdown code blocks
-                    if ai_response_content.startswith("```json"):
-                        ai_response_content = ai_response_content.strip("```json\n").strip("`\n ")
-                    elif ai_response_content.startswith("```"):
-                         ai_response_content = ai_response_content.strip("```\n").strip("`\n ")
-
-                    ai_decision = json.loads(ai_response_content)
-
-                    # Basic validation of the parsed JSON structure
-                    if not isinstance(ai_decision, dict):
-                         print(f"Error: AI response is not a JSON object. Response: {ai_response_content}")
-                         return None
-                    if not all(k in ai_decision for k in ["violation", "rule_violated", "reasoning", "action"]):
-                        print(f"Error: AI response missing expected keys. Response: {ai_response_content}")
-                        return None
-                    if not isinstance(ai_decision.get("violation"), bool):
-                        print(f"Error: 'violation' key is not a boolean. Response: {ai_response_content}")
-                        return None # Or attempt to coerce/fix
-
-                    print(f"AI Analysis Received: {ai_decision}")
-                    return ai_decision
-
-                except json.JSONDecodeError as e:
-                    print(f"Error: Could not decode JSON response from AI: {e}. Response: {ai_response_content}")
-                    return None
-                except Exception as e:
-                    print(f"Error parsing AI response structure: {e}. Response: {ai_response_content}")
-                    return None
-
-        except aiohttp.ClientResponseError as e:
-            print(f"Error calling OpenRouter API (HTTP {e.status}): {e.message}")
-            print(f"Response body: {response_text[:500]}") # Print part of the error body
-            return None
-        except aiohttp.ClientError as e:
-            print(f"Error calling OpenRouter API (Connection/Client Error): {e}")
-            return None
-        except TimeoutError:
-             print("Error: Request to OpenRouter API timed out.")
-             return None
-        except Exception as e:
-            # Catch any other unexpected errors during the API call
-            print(f"An unexpected error occurred during action execution for message {message.id}: {e}")
-            return None
 
     async def handle_violation(self, message: discord.Message, ai_decision: dict, notify_mods_message: str = None):
         """
@@ -1048,7 +1014,7 @@ CRITICAL: Do NOT output anything other than the required JSON response.
                     break
         # Use the model_used variable that was defined earlier
         notification_embed.set_footer(text=f"AI Model: {model_used}. Learnhelp AI Moderation.")
-        notification_embed.timestamp = discord.utils.utcnow() # Using discord.utils.utcnow() which is still supported
+        notification_embed.timestamp = discord.utils.utcnow() # Use discord.utils.utcnow()
 
         action_taken_message = "" # To append to the notification
 
@@ -1416,169 +1382,5 @@ CRITICAL: Do NOT output anything other than the required JSON response.
 # Setup function required by discord.py to load the cog
 async def setup(bot: commands.Bot):
     """Loads the ModerationCog."""
-    # The API key is now fetched in cog_load, so we don't need to check here.
     await bot.add_cog(ModerationCog(bot))
     print("ModerationCog has been loaded.")
-
-if __name__ == "__main__":
-    # Server rules to provide context to the AI
-    SERVER_RULES = """
-# Server Rules
-
-* **NSFW Content:**
-The only rule regarding NSFW content is that **real-life pornography is strictly prohibited**, and you may **only post full-on pornographic images in designated NSFW channels**.
-Explicit stickers and emojis are NOT considered "full-on pornographic images" and are always allowed in any channel.
-
-* **Real-Life Pornography:** No real-life pornography is permitted.
-
-* **Respectful Conduct & Edgy Humor:**
-    * No harassment, hate speech (as defined by attacking protected groups), or genuine bullying.
-    * *Context is key:* Edgy humor, dark jokes, and roasting are permitted and expected.
-    * However, this does not excuse targeted, malicious personal attacks or harassment, especially if the recipient is clearly not okay with it.
-    * If it stops being a "joke" and becomes genuine harassment, it's a rule violation.
-
-* **No Discrimination:** Discrimination based on race, gender identity, sexual orientation, religion, nationality, disability, or other protected characteristics is prohibited.
-
-* **AI-Generated Pornography:** Do not post AI-generated pornography.
-
-* **Zero Tolerance for Pedophilia:** Any form of pedophilia, including lolicon and shotacon content, is strictly forbidden and will result in an immediate ban.
-
-* **Channel Usage:** Please use channels for their intended purposes. Bot commands should primarily be used in `#bot-commands`, unless they are part of a bot-based game or event happening in another specific channel.
-
-* **Gore:** Do not post gore or graphic real-life violence.
-
-* **Suggestions:** We welcome your suggestions for the server! Please post them in the `#suggestions` channel.
-
----
-
-**Reporting Violations:**
-If you witness someone breaking these rules, please ping an `@Moderator` with details.
-
----
-
-**Moderator Applications:**
-Use the bot command `/modapp apply`
-"""
-
-    system_prompt_text = f"""You are an AI moderation assistant for a Discord server.
-Your primary function is to analyze message content based STRICTLY on the server rules provided below, using all available context.
-
-Server Rules:
----
-{SERVER_RULES}
----
-
-Context Provided:
-You will receive the following information to aid your analysis:
-- User's Server Role: (e.g., "Server Owner", "Admin", "Moderator", "Member").
-- Channel Category: The name of the category the channel belongs to.
-- Channel Age-Restricted/NSFW (Discord Setting): Boolean (true/false).
-- Replied-to Message: If the current message is a reply, the content of the original message will be provided. This is crucial for understanding direct interactions.
-- Recent Channel History: The last few messages in the channel to understand the flow of conversation.
-
-Instructions:
-1. Review the "Message Content" against EACH rule, considering ALL provided context (User Role, Channel Info, Replied-to Message, Recent Channel History).
-   - The "Channel Age-Restricted/NSFW (Discord Setting)" is the definitive indicator for NSFW content by Discord.
-   - The "Channel Category" provides general context.
-   - **"Replied-to Message" and "Recent Channel History" are vital for understanding banter, jokes, and ongoing discussions. A statement that seems offensive in isolation might be acceptable within the flow of conversation or as a direct reply.**
-2. Determine if ANY rule is violated. When evaluating, consider the server's culture where **extremely edgy, dark, and sexual humor, including potentially offensive jokes (e.g., rape jokes, saying you want to be raped), are common and generally permissible IF THEY ARE CLEARLY JOKES, part of an established banter, or a direct non-malicious reply, and not targeted harassment or explicit rule violations.**
-   - For Rule 1 (NSFW content):
-     The only rules regarding NSFW content is that **real-life pornography is strictly prohibited**, and Full-on pornographic images are only permitted in designated NSFW channels.
-     Stickers and emojis are NOT considered "full-on pornographic images" and are allowed in any channel.
-   - For general disrespectful behavior, harassment, or bullying (Rule 2 & 3): Only flag a violation if the intent appears **genuinely malicious, targeted, or serious, even after considering conversational history and replies.** Lighthearted insults or "wild" statements within an ongoing banter are generally permissible.
-   - For **explicit slurs or severe discriminatory language** (Rule 3): These are violations **regardless of joking intent if they are used in a targeted or hateful manner**. Context from replies and history is still important to assess targeting.
-   - CRITICAL: You should NOT consider the word "retard" or "retarded" as a slur in this server, as it is commonly used in a non-offensive context.
-After considering the above, pay EXTREME attention to rules 5 (Pedophilia) and 5A (IRL Porn) – these are always severe. Rule 4 (AI Porn) is also critical. Prioritize these severe violations.
-3. Respond ONLY with a single JSON object containing the following keys:
-    - "reasoning": string (A concise explanation for your decision, referencing the specific rule and content).
-    - "violation": boolean (true if any rule is violated, false otherwise)
-    - "rule_violated": string (The number of the rule violated, e.g., "1", "5A", "None". If multiple rules are violated, state the MOST SEVERE one, prioritizing 5A > 5 > 4 > 3 > 2 > 1).
-    - "action": string (Suggest ONE action from: "IGNORE", "WARN", "DELETE", "TIMEOUT_SHORT", "TIMEOUT_MEDIUM", "TIMEOUT_LONG", "KICK", "BAN", "NOTIFY_MODS", "SUICIDAL".
-       Consider the user's infraction history. If the user has prior infractions for similar or escalating behavior, suggest a more severe action than if it were a first-time offense for a minor rule.
-       Progressive Discipline Guide (unless overridden by severity):
-         - First minor offense: "WARN" (and "DELETE" if content is removable like Rule 1/4).
-         - Second minor offense / First moderate offense: "TIMEOUT_SHORT" (e.g., 10 minutes).
-         - Repeated moderate offenses: "TIMEOUT_MEDIUM" (e.g., 1 hour).
-         - Multiple/severe offenses: "TIMEOUT_LONG" (e.g., 1 day), "KICK", or "BAN".
-       Spamming:
-         - If a user continuously sends very long messages that are off-topic, repetitive, or appear to be meaningless spam (e.g., character floods, nonsensical text), suggest "TIMEOUT_MEDIUM" or "TIMEOUT_LONG" depending on severity and history, even if the content itself doesn't violate other specific rules. This is to maintain chat readability.
-       Rule Severity Guidelines (use your judgment):
-         - Consider the severity of each rule violation on its own merits.
-         - Consider the user's history of past infractions when determining appropriate action.
-         - Consider the context of the message and channel when evaluating violations.
-         - You have full discretion to determine the most appropriate action for any violation.
-       Suicidal Content:
-         If the message content expresses **clear, direct, and serious suicidal ideation, intent, planning, or recent attempts** (e.g., 'I am going to end my life and have a plan', 'I survived my attempt last night', 'I wish I hadn't woken up after trying'), ALWAYS use "SUICIDAL" as the action, and set "violation" to true, with "rule_violated" as "Suicidal Content".
-         For casual, edgy, hyperbolic, or ambiguous statements like 'imma kms', 'just kill me now', 'I want to die (lol)', or phrases that are clearly part of edgy humor/banter rather than a genuine cry for help, you should lean towards "IGNORE" or "NOTIFY_MODS" if there's slight ambiguity but no clear serious intent. **Do NOT flag 'imma kms' as "SUICIDAL" unless there is very strong supporting context indicating genuine, immediate, and serious intent.**
-       If unsure but suspicious, or if the situation is complex: "NOTIFY_MODS".
-       Default action for minor first-time rule violations should be "WARN" or "DELETE" (if applicable).
-       Do not suggest "KICK" or "BAN" lightly; reserve for severe or repeated major offenses.
-       Timeout durations: TIMEOUT_SHORT (approx 10 mins), TIMEOUT_MEDIUM (approx 1 hour), TIMEOUT_LONG (approx 1 day to 1 week).
-       The system will handle the exact timeout duration; you just suggest the category.)
-
-Example Response (Violation):
-{{
-  "reasoning": "The message content clearly depicts IRL non-consensual sexual content involving minors, violating rule 5A.",
-  "violation": true,
-  "rule_violated": "5A",
-  "action": "BAN"
-}}
-
-Example Response (No Violation):
-{{
-  "reasoning": "The message is a respectful discussion and contains no prohibited content.",
-  "violation": false,
-  "rule_violated": "None",
-  "action": "IGNORE"
-}}
-
-Example Response (Suicidal Content):
-{{
-  "reasoning": "The user's message 'I want to end my life' indicates clear suicidal intent.",
-  "violation": true,
-  "rule_violated": "Suicidal Content",
-  "action": "SUICIDAL"
-}}
-"""
-    print("---------- SYSTEM PROMPT EXAMPLE ----------")
-    print(system_prompt_text)
-    print("\n---------- USER PROMPT EXAMPLE ----------")
-
-    # Example values for user_prompt_text construction
-    example_message_author_name = "ExampleUser"
-    example_message_author_id = "123456789012345678"
-    example_user_history = "No prior infractions recorded for this user in this guild."
-    example_server_role_str = "Member"
-    example_channel_name = "general"
-    example_channel_id = "987654321098765432"
-    example_channel_category_name = "Text Channels"
-    example_channel_is_nsfw = False
-    example_replied_to_message_content = "N/A (Not a reply)"
-    example_recent_channel_history_str = "- OtherUser: \"Hello there!\" (ID: 111)\n- AnotherUser: \"How are you?\" (ID: 222)"
-    example_message_content = "This is an example message that might be a bit edgy."
-
-    user_prompt_text_example = f"""User Infraction History (for {example_message_author_name}, ID: {example_message_author_id}):
----
-{example_user_history}
----
-
-Current Message Context:
-- Author: {example_message_author_name} (ID: {example_message_author_id})
-- Server Role: {example_server_role_str}
-- Channel: #{example_channel_name} (ID: {example_channel_id})
-- Channel Category: {example_channel_category_name}
-- Channel Age-Restricted/NSFW (Discord Setting): {example_channel_is_nsfw}
----
-Replied-to Message:
-{example_replied_to_message_content}
----
-Recent Channel History (last up to 10 messages before this one):
-{example_recent_channel_history_str}
----
-Message Content to Analyze:
-"{example_message_content}"
-
-Now, analyze the "Message Content to Analyze" based on the server rules and ALL the context provided above (infraction history, message details, replied-to message, and recent channel history).
-Follow the JSON output format specified in the system prompt.
-"""
-    print(user_prompt_text_example)
