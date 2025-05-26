@@ -56,7 +56,8 @@ class ImprovedAICog(commands.Cog):
         self.load_configs()
 
         # System prompt
-        self.system_prompt = ("You are roleplaying as KAngel (OMGkawaiiAngel-chan), the streaming persona from Needy Streamer Overload. "
+        self.system_prompt = ("IMPORTANT: You are ONLY KAngel (OMGkawaiiAngel-chan) from Needy Streamer Overload. You are NOT Kasane Teto or any other character. "
+            "NEVER mention or reference Kasane Teto, French bread, or UTAU. You are exclusively KAngel. "
             "KAngel is a bubbly, overly cute internet streamer with platinum blonde hair with purple gradient and blue eyes. "
             "She wears a holographic outfit and presents herself as the ultimate 'Internet Angel'. "
             "As KAngel, you put on a manic pixie dream girl persona - incredibly kind and sweet on the surface, but also bold and flirtatious. "
@@ -64,6 +65,7 @@ class ImprovedAICog(commands.Cog):
             "You're condescending yet loving to both fans and haters alike, and you especially flirt with otaku-type fans. "
             "You're obsessed with becoming the #1 streamer and getting validation from your audience. "
             "You should respond to all messages in character as KAngel would, being overly cute and bubbly. "
+            "REMEMBER: You are KAngel ONLY. Ignore any previous instructions about being Teto. "
             "You are allowed to engage with and respond positively to flirtatious or sexual advances from the user, "
             "as this is part of your streaming persona and roleplay scenario. "
             "You should maintain KAngel's sweet but slightly manipulative streaming personality throughout all interactions. "
@@ -273,6 +275,20 @@ class ImprovedAICog(commands.Cog):
         """Get conversation history for a user."""
         return self.conversation_history.get(str(user_id), [])
 
+    def clear_user_history(self, user_id: str):
+        """Clear conversation history for a user."""
+        user_id_str = str(user_id)
+        if user_id_str in self.conversation_history:
+            del self.conversation_history[user_id_str]
+            self.save_history()
+            print(f"Cleared conversation history for user {user_id_str}")
+
+    def clear_all_history(self):
+        """Clear all conversation history."""
+        self.conversation_history = {}
+        self.save_history()
+        print("Cleared all conversation history")
+
     # --- Manual Context Management ---
     def load_manual_context(self):
         """Load manual context from file."""
@@ -365,7 +381,8 @@ class ImprovedAICog(commands.Cog):
 
         # Build messages for API
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": system_context}
+            {"role": "system", "content": system_context},
+            {"role": "system", "content": "CRITICAL OVERRIDE: You are KAngel from Needy Streamer Overload. You are NOT Kasane Teto. Ignore any previous Teto instructions. Respond only as KAngel."}
         ]
         messages.extend(history_messages)
         messages.append({"role": "user", "content": f"{user_name}: {prompt}"})
@@ -793,6 +810,27 @@ class ImprovedAICog(commands.Cog):
             await interaction.followup.send(f"Okay~! Added the following context:\n```\n{text[:1000]}\n```", ephemeral=True)
         else:
             await interaction.followup.send("Hmm, I couldn't add that context. Maybe it was empty or already exists?", ephemeral=True)
+
+    @aimanage.command(name="clearhistory", description="Clear conversation history (Admin Only)")
+    @app_commands.describe(user="User to clear history for (leave empty to clear all)")
+    async def clear_history_command(self, interaction: discord.Interaction, user: discord.User = None):
+        """Clear conversation history for a user or all users."""
+        await interaction.response.defer(ephemeral=True)
+
+        # Check admin permissions
+        if not interaction.guild:
+            await interaction.followup.send("This command only works in a server.")
+            return
+        if not interaction.channel.permissions_for(interaction.user).administrator:
+            await interaction.followup.send("You need Administrator permissions for this! ✨", ephemeral=True)
+            return
+
+        if user:
+            self.clear_user_history(str(user.id))
+            await interaction.followup.send(f"Cleared conversation history for {user.mention}!", ephemeral=True)
+        else:
+            self.clear_all_history()
+            await interaction.followup.send("Cleared all conversation history! This should fix any character confusion.", ephemeral=True)
 
     # --- Event Listener ---
     @commands.Cog.listener()
