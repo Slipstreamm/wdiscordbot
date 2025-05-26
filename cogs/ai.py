@@ -43,7 +43,7 @@ class ImprovedAICog(commands.Cog):
 
         # Configuration
         self.default_config = {
-            "model": "meta-llama/llama-4-maverick:free",
+            "model": "google/gemini-2.5-flash-preview-05-20",
             "temperature": 0.75,
             "max_tokens": 1500,
             "top_p": 0.9,
