@@ -26,7 +26,7 @@ OPENROUTER_MODEL = "google/gemini-2.5-flash-preview-05-20" # Make sure this mode
 MOD_LOG_API_SECRET_ENV_VAR = "MOD_LOG_API_SECRET"
 
 # --- Per-Guild Discord Configuration ---
-GUILD_CONFIG_DIR = "/home/server/wdiscordbot-json-data" # Using the existing directory for all json data
+GUILD_CONFIG_DIR = "/home/ubuntu/wdiscordbot-json-data" # Using the existing directory for all json data
 GUILD_CONFIG_PATH = os.path.join(GUILD_CONFIG_DIR, "guild_config.json")
 USER_INFRACTIONS_PATH = os.path.join(GUILD_CONFIG_DIR, "user_infractions.json")
 
@@ -207,7 +207,7 @@ class ModerationCog(commands.Cog):
 
     def _load_openrouter_models(self):
         """Loads OpenRouter model data from the JSON file."""
-        models_json_path = "/home/server/wdiscordbotserver/data/openrouter_models.json" # Relative to bot's root
+        models_json_path = "/home/ubuntu/wdiscordbot-internal-server-aws/data/openrouter_models.json" # Relative to bot's root
         try:
             if os.path.exists(models_json_path):
                 with open(models_json_path, "r", encoding="utf-8") as f:
