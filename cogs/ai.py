@@ -832,6 +832,64 @@ class ImprovedAICog(commands.Cog):
             self.clear_all_history()
             await interaction.followup.send("Cleared all conversation history! This should fix any character confusion.", ephemeral=True)
 
+    @aimanage.command(name="changeprompt", description="Change the AI system prompt (Admin Only)")
+    @app_commands.describe(prompt="The new system prompt to use")
+    async def change_prompt_command(self, interaction: discord.Interaction, prompt: str):
+        """Change the AI system prompt."""
+        await interaction.response.defer(ephemeral=True)
+
+        # Check admin permissions
+        if not interaction.guild:
+            await interaction.followup.send("This command only works in a server.")
+            return
+        if not interaction.channel.permissions_for(interaction.user).administrator:
+            await interaction.followup.send("You need Administrator permissions for this! ✨", ephemeral=True)
+            return
+
+        # Store the old prompt for backup
+        old_prompt = self.system_prompt[:100] + "..." if len(self.system_prompt) > 100 else self.system_prompt
+
+        # Update the system prompt
+        self.system_prompt = prompt
+
+        # Clear all conversation history to prevent confusion with old personality
+        self.clear_all_history()
+
+        await interaction.followup.send(
+            f"✅ **System prompt updated successfully!**\n\n"
+            f"**Old prompt (first 100 chars):** `{old_prompt}`\n\n"
+            f"**New prompt (first 100 chars):** `{prompt[:100]}{'...' if len(prompt) > 100 else ''}`\n\n"
+            f"**Note:** All conversation history has been cleared to prevent personality conflicts.",
+            ephemeral=True
+        )
+
+    @aimanage.command(name="viewprompt", description="View the current AI system prompt (Admin Only)")
+    async def view_prompt_command(self, interaction: discord.Interaction):
+        """View the current AI system prompt."""
+        await interaction.response.defer(ephemeral=True)
+
+        # Check admin permissions
+        if not interaction.guild:
+            await interaction.followup.send("This command only works in a server.")
+            return
+        if not interaction.channel.permissions_for(interaction.user).administrator:
+            await interaction.followup.send("You need Administrator permissions for this! ✨", ephemeral=True)
+            return
+
+        # Split the prompt into chunks if it's too long for Discord
+        prompt = self.system_prompt
+        max_length = 1900  # Leave room for formatting
+
+        if len(prompt) <= max_length:
+            await interaction.followup.send(f"**Current System Prompt:**\n```\n{prompt}\n```", ephemeral=True)
+        else:
+            # Split into multiple messages
+            chunks = [prompt[i:i+max_length] for i in range(0, len(prompt), max_length)]
+            await interaction.followup.send(f"**Current System Prompt (Part 1/{len(chunks)}):**\n```\n{chunks[0]}\n```", ephemeral=True)
+
+            for i, chunk in enumerate(chunks[1:], 2):
+                await interaction.followup.send(f"**Part {i}/{len(chunks)}:**\n```\n{chunk}\n```", ephemeral=True)
+
     # --- Event Listener ---
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
